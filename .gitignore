@@ -205,5 +205,39 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-.vscode/ 
-config.json
+
+# IDE/Editor configurations
+.vscode/
+
+# Project-specific ignores
+# .claude/ directory contains local Claude IDE configurations
+.claude/
+
+# Platform-specific files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*~
+
+# Backup files
+*.bak
+*.tmp
+*.temp
+
+# Log files
+*.log
+logs/
+
+# Runtime data directories (generated during execution)
+# Note: These directories have .gitkeep files to preserve structure
+# Actual runtime files in these directories should be ignored
+data/logs/*.log
+data/logs/*.txt
+data/processed/*.csv
+data/processed/*.json
+outputs/figures/*.png
+outputs/figures/*.jpg
+outputs/figures/*.svg
+outputs/reports/*.txt
+outputs/reports/*.md
+outputs/reports/*.json

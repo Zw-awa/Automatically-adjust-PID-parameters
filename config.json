@@ -1,0 +1,74 @@
+{
+  "serial": {
+    "port": "COM3",
+    "baudrate": 115200,
+    "timeout": 1.0,
+    "encoding": "utf-8"
+  },
+  "llm": {
+    "api_key": "your-deepseek-api-key",
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-reasoner",
+    "model_fallback": "deepseek-chat",
+    "temperature": 0.3,
+    "max_tokens": 1024
+  },
+  "loops": {
+    "speed": {
+      "name": "速度环",
+      "pid": {"kp": 1.0, "ki": 0.1, "kd": 0.05},
+      "limits": {"kp": [0.01, 50.0], "ki": [0.0, 20.0], "kd": [0.0, 10.0]},
+      "target_metrics": {
+        "max_overshoot_pct": 5.0,
+        "max_settling_time_s": 0.5,
+        "max_sse_pct": 1.0
+      },
+      "description": "电机速度闭环控制，目标值为编码器反馈的转速(RPM或脉冲数/周期)"
+    },
+    "steering": {
+      "name": "转向环",
+      "pid": {"kp": 2.0, "ki": 0.0, "kd": 1.0},
+      "limits": {"kp": [0.01, 100.0], "ki": [0.0, 10.0], "kd": [0.0, 50.0]},
+      "target_metrics": {
+        "max_overshoot_pct": 3.0,
+        "max_settling_time_s": 0.3,
+        "max_sse_pct": 0.5
+      },
+      "description": "舵机/差速转向控制，目标值为方向偏差"
+    },
+    "position": {
+      "name": "位置环",
+      "pid": {"kp": 0.5, "ki": 0.01, "kd": 0.2},
+      "limits": {"kp": [0.001, 30.0], "ki": [0.0, 5.0], "kd": [0.0, 20.0]},
+      "target_metrics": {
+        "max_overshoot_pct": 2.0,
+        "max_settling_time_s": 1.0,
+        "max_sse_pct": 0.5
+      },
+      "description": "位置/里程闭环控制，目标值为编码器累计脉冲或距离"
+    },
+    "current": {
+      "name": "电流环",
+      "pid": {"kp": 0.3, "ki": 0.5, "kd": 0.01},
+      "limits": {"kp": [0.001, 10.0], "ki": [0.0, 50.0], "kd": [0.0, 5.0]},
+      "target_metrics": {
+        "max_overshoot_pct": 5.0,
+        "max_settling_time_s": 0.01,
+        "max_sse_pct": 2.0
+      },
+      "description": "电机电流闭环控制，目标值为期望电流(mA)"
+    }
+  },
+  "tuning": {
+    "max_change_ratio": 0.2,
+    "min_change_threshold": 0.01,
+    "history_window": 10,
+    "data_sample_count": 50,
+    "convergence_patience": 3
+  },
+  "online": {
+    "tune_interval_s": 10,
+    "data_buffer_size": 200,
+    "auto_apply": false
+  }
+}
