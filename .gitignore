@@ -241,3 +241,8 @@ outputs/figures/*.svg
 outputs/reports/*.txt
 outputs/reports/*.md
 outputs/reports/*.json
+
+.claude/
+.github/
+.serial_mcp/
+docs/
