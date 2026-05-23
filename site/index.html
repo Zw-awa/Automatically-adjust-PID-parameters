@@ -48,9 +48,7 @@
     .brand, nav, .window, .terminal, .card { border: 1px solid var(--border); background: var(--panel); }
     .brand { padding: 14px 12px; margin-bottom: 18px; }
     .brand h1 { margin: 0 0 8px; font-family: "IBM Plex Sans", sans-serif; font-size: clamp(1.1rem,1vw + 0.9rem,1.4rem); color: var(--green); text-transform: uppercase; letter-spacing: 0.04em; }
-    .brand p, .statusline, .nav-note, .small, .footer { margin: 0; color: var(--muted); font-size: 0.92rem; }
-    .statusline { display: grid; gap: 6px; padding: 12px; border: 1px dashed var(--border); background: rgba(132,199,203,0.04); margin-bottom: 18px; }
-    .statusline span strong { color: var(--amber); }
+    .brand p, .nav-note, .small, .footer { margin: 0; color: var(--muted); font-size: 0.92rem; }
     nav { padding: 12px; }
     nav h2 { margin: 0 0 12px; font-size: 0.95rem; color: var(--amber); letter-spacing: 0.08em; text-transform: uppercase; font-family: "IBM Plex Sans", sans-serif; }
     nav a { display: block; padding: 6px 0; color: var(--text); border-bottom: 1px dotted rgba(158,169,148,0.2); }
@@ -85,11 +83,6 @@
         <h1>Automatically-adjust-PID-parameters</h1>
         <p>先本地分析，再仿真，再接串口，最后在线调参。</p>
       </div>
-      <div class="statusline mono">
-        <span>模式 <strong>使用说明</strong></span>
-        <span>风格 <strong>简洁手册</strong></span>
-        <span>配置 <strong>config.example.json -> config.json</strong></span>
-      </div>
       <nav>
         <h2>目录</h2>
         <a href="#start">00 / 先看这里</a>
@@ -107,7 +100,7 @@
       <div class="window">
         <div class="titlebar">
           <span>Automatically-adjust-PID-parameters</span>
-          <span>使用说明页</span>
+          <span>offline -> simulate -> online</span>
         </div>
         <section class="hero" id="start">
           <h2>先本地分析，再接硬件</h2>

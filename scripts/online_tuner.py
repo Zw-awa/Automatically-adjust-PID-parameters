@@ -24,7 +24,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Online PID tuner")
     parser.add_argument("--port", "-p", help="Serial port")
     parser.add_argument("--loop", "-l", required=True, help="Loop name")
-    parser.add_argument("--interval", "-i", type=float, default=10, help="Tune interval (s)")
+    parser.add_argument("--interval", "-i", type=float, help="Tune interval (s)")
     parser.add_argument("--auto", action="store_true", help="Auto-apply params")
     parser.add_argument("--config", help="Config file path")
     args = parser.parse_args()
@@ -44,6 +44,7 @@ def main() -> None:
         loop_name=args.loop,
         port=args.port,
         interval=args.interval,
+        config_path=args.config,
     )
 
 

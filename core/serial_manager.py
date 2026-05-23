@@ -270,6 +270,17 @@ class SerialManager:
             logger.info("Serial reader thread stopped")
         self._reader_thread = None
 
+    def prepare_ack_queue(self, loop_name: str) -> queue.Queue[PIDParams | None]:
+        """Register an ACK queue before sending a command.
+
+        Registering first avoids a race where the MCU responds so quickly
+        that the reader thread consumes the ACK before `wait_for_ack()`
+        has created its queue.
+        """
+        q: queue.Queue[PIDParams | None] = queue.Queue()
+        self._ack_queues[loop_name] = q
+        return q
+
     def _reader_loop(self) -> None:
         """Background loop that reads serial data."""
         while not self._stop_event.is_set():
@@ -293,6 +304,7 @@ class SerialManager:
         self,
         loop_name: str,
         timeout: float = 5.0,
+        ack_queue: queue.Queue[PIDParams | None] | None = None,
     ) -> PIDParams | None:
         """Wait for an ACK message for a specific loop.
 
@@ -306,8 +318,7 @@ class SerialManager:
         Returns:
             Acknowledged PID params, or None if timeout.
         """
-        q: queue.Queue[PIDParams | None] = queue.Queue()
-        self._ack_queues[loop_name] = q
+        q = ack_queue or self.prepare_ack_queue(loop_name)
         try:
             params = q.get(timeout=timeout)
             logger.info("ACK received for %s", loop_name)
@@ -316,4 +327,5 @@ class SerialManager:
             logger.warning("ACK timeout for %s after %.1fs", loop_name, timeout)
             return None
         finally:
-            self._ack_queues.pop(loop_name, None)
+            if self._ack_queues.get(loop_name) is q:
+                self._ack_queues.pop(loop_name, None)

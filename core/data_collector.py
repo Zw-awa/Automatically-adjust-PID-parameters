@@ -19,7 +19,6 @@ from core.serial_manager import ParsedMessage
 logger = logging.getLogger(__name__)
 
 RAW_DATA_DIR = Path(__file__).parent.parent / "data" / "raw"
-PROCESSED_DATA_DIR = Path(__file__).parent.parent / "data" / "processed"
 
 CSV_HEADER = ["timestamp", "target", "actual", "error", "output"]
 
@@ -99,6 +98,21 @@ class DataCollector:
                 return list(self._buffer)
             return list(self._buffer)[-n:]
 
+    def get_recent_with_marker(self, n: int | None = None) -> tuple[list[DataSample], int]:
+        """Get recent samples and a marker for later buffer trimming.
+
+        The returned marker is the total sample count at snapshot time.
+        It can be passed to `clear_before()` to drop only data that was
+        already present when the snapshot was taken, while preserving any
+        samples that arrived during a long analysis/LLM call.
+        """
+        with self._lock:
+            if n is None:
+                samples = list(self._buffer)
+            else:
+                samples = list(self._buffer)[-n:]
+            return samples, self._total_received
+
     def get_all(self) -> list[DataSample]:
         """Get all buffered samples."""
         with self._lock:
@@ -108,6 +122,23 @@ class DataCollector:
         """Clear the buffer."""
         with self._lock:
             self._buffer.clear()
+
+    def clear_before(self, total_received_marker: int) -> None:
+        """Drop buffered samples that existed at snapshot time.
+
+        Keeps any samples that arrived after `total_received_marker`.
+        This avoids losing fresh serial data that came in while a tuning
+        iteration was still being analyzed or sent to the LLM.
+        """
+        with self._lock:
+            new_sample_count = max(0, self._total_received - total_received_marker)
+            if new_sample_count <= 0:
+                self._buffer.clear()
+                return
+
+            preserved_count = min(new_sample_count, len(self._buffer))
+            preserved = list(self._buffer)[-preserved_count:]
+            self._buffer = deque(preserved, maxlen=self._buffer.maxlen)
 
     def start_recording(self, filepath: Path | str | None = None) -> Path:
         """Start recording all incoming data to a CSV file.

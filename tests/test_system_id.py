@@ -7,6 +7,7 @@ from unittest import mock
 
 from core.analyzer import analyze, parse_csv_data
 from core.config import load_config, save_config
+from core.workflows import run_offline
 
 
 class SystemTests(unittest.TestCase):
@@ -48,6 +49,38 @@ class SystemTests(unittest.TestCase):
             saved = config_path.read_text(encoding="utf-8")
 
         self.assertIn("local-secret-key", saved)
+
+    def test_run_offline_saves_back_to_explicit_config_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "custom-config.json"
+            history_path = Path(tmp) / "history.json"
+            config_path.write_text(Path("config.example.json").read_text(encoding="utf-8"), encoding="utf-8")
+
+            config = load_config(config_path)
+
+            fake_result = mock.Mock()
+            fake_result.new_params = config.get_loop("speed").pid
+            fake_result.reason = "ok"
+            fake_result.confidence = 0.9
+            fake_result.expected_improvement = "ok"
+            fake_result.model_used = "mock"
+            fake_result.converged = False
+
+            history_path.write_text(
+                '{"loop_name": "speed", "record_count": 0, "records": []}',
+                encoding="utf-8",
+            )
+
+            with mock.patch("core.workflows.tune", return_value=fake_result):
+                run_offline(
+                    config=config,
+                    loop_name="speed",
+                    data_file="data/raw/example_speed_data.csv",
+                    history_file=str(history_path),
+                    config_path=str(config_path),
+                )
+
+            self.assertTrue(config_path.exists())
 
 
 if __name__ == "__main__":

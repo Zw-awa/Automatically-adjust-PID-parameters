@@ -14,7 +14,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 from core.analyzer import parse_csv_data
 from core.history_manager import load_history
