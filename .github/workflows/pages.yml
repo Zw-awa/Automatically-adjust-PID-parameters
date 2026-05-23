@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ github.token }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
