@@ -6,6 +6,8 @@ Displays parsed messages and optionally saves raw data to file.
 Usage:
   python scripts/monitor_serial.py --port COM3
   python scripts/monitor_serial.py --port COM3 --save data/raw/monitor.csv
+
+COM3 is only the default example. Change it to your actual serial port.
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ from core.serial_manager import SerialManager, ParsedMessage
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Monitor serial port")
-    parser.add_argument("--port", "-p", help="Serial port (e.g. COM3)")
+    parser.add_argument("--port", "-p", help="Serial port. COM3 is only the default example.")
     parser.add_argument("--baud", "-b", type=int, help="Baud rate")
     parser.add_argument("--save", "-s", help="Save raw data to CSV file")
     parser.add_argument("--config", help="Config file path")

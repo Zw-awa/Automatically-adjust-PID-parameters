@@ -1,0 +1,46 @@
+name: Validate
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate tracked configuration template
+        run: |
+          python -c "import json, pathlib; cfg = json.loads(pathlib.Path('config.example.json').read_text(encoding='utf-8')); assert cfg['llm']['api_key'] == 'your-deepseek-api-key'; assert 'speed' in cfg['loops']"
+
+      - name: Validate key project files
+        run: |
+          python -c "from pathlib import Path; required = ['README.md', 'main.py', 'requirements.txt', 'config.example.json', 'site/index.html', '.github/workflows/pages.yml']; missing = [p for p in required if not Path(p).exists()]; assert not missing, f'Missing files: {missing}'"
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Verify CLI entry points
+        run: |
+          python main.py --help
+          python scripts/offline_analyze.py --file data/raw/example_speed_data.csv
+          python scripts/convert_to_code.py --loop speed

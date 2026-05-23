@@ -143,6 +143,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+config.json
+config.local.json
 
 # Spyder project settings
 .spyderproject
@@ -150,9 +152,6 @@ venv.bak/
 
 # Rope project settings
 .ropeproject
-
-# mkdocs documentation
-/site
 
 # mypy
 .mypy_cache/
@@ -168,50 +167,16 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-# PyCharm
-#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
-#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-#  and can be added to the global gitignore or merged into this file.  For a more nuclear
-#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
-
-# Abstra
-# Abstra is an AI-powered process automation framework.
-# Ignore directories containing user credentials, local state, and settings.
-# Learn more at https://abstra.io/docs
-.abstra/
-
-# Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
-#  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
-#  you could uncomment the following to ignore the entire vscode folder
-# .vscode/
-
 # Ruff stuff:
 .ruff_cache/
 
 # PyPI configuration file
 .pypirc
 
-# Cursor
-#  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
-#  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
-#  refer to https://docs.cursor.com/context/ignore-files
-.cursorignore
-.cursorindexingignore
-
 # Marimo
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-
-# IDE/Editor configurations
-.vscode/
-
-# Project-specific ignores
-# .claude/ directory contains local Claude IDE configurations
-.claude/
 
 # Platform-specific files
 .DS_Store
@@ -224,25 +189,23 @@ Desktop.ini
 *.tmp
 *.temp
 
+/.*/
+!/.github/
+
 # Log files
 *.log
 logs/
 
-# Runtime data directories (generated during execution)
-# Note: These directories have .gitkeep files to preserve structure
-# Actual runtime files in these directories should be ignored
+# Runtime data and generated outputs
+data/raw/*.csv
+!data/raw/example_speed_data.csv
 data/logs/*.log
 data/logs/*.txt
+data/logs/*.json
 data/processed/*.csv
 data/processed/*.json
-outputs/figures/*.png
-outputs/figures/*.jpg
-outputs/figures/*.svg
+outputs/figures/*
+!outputs/figures/.gitkeep
 outputs/reports/*.txt
 outputs/reports/*.md
 outputs/reports/*.json
-
-.claude/
-.github/
-.serial_mcp/
-docs/

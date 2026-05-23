@@ -1,4 +1,4 @@
-"""PID Auto-Tuner - Main Entry Point.
+"""Automatically-adjust-PID-parameters - Main Entry Point.
 
 Two operating modes:
   1. Offline: Load CSV data file -> analyze -> LLM suggest -> output params
@@ -71,7 +71,7 @@ def run_offline(
       6. Save history
     """
     print(f"\n{'='*60}")
-    print(f"  PID Auto-Tuner - Offline Mode")
+    print(f"  Automatically-adjust-PID-parameters - Offline Mode")
     print(f"  Loop: {loop_name}")
     print(f"  Data: {data_file}")
     print(f"{'='*60}\n")
@@ -209,7 +209,7 @@ def run_online(
     auto_apply = config.online.auto_apply
 
     print(f"\n{'='*60}")
-    print(f"  PID Auto-Tuner - Online Mode")
+    print(f"  Automatically-adjust-PID-parameters - Online Mode")
     print(f"  Loop: {loop_name}")
     print(f"  Port: {serial_config.port} @ {serial_config.baudrate}")
     print(f"  Tune interval: {tune_interval}s")
@@ -389,7 +389,7 @@ def run_simulate(
     import numpy as np
 
     print(f"\n{'='*60}")
-    print(f"  PID Auto-Tuner - Simulation Mode")
+    print(f"  Automatically-adjust-PID-parameters - Simulation Mode")
     print(f"  Loop: {loop_name}")
     print(f"  Iterations: {iterations}")
     print(f"{'='*60}\n")
@@ -584,7 +584,7 @@ def _pct_change(old: float, new: float) -> str:
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
     parser = argparse.ArgumentParser(
-        description="PID Auto-Tuner - LLM-powered PID parameter optimization",
+        description="Automatically-adjust-PID-parameters - LLM-based PID parameter tuning",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 Examples:
@@ -592,6 +592,7 @@ Examples:
   python main.py offline --file data/raw/speed_data.csv --loop speed
 
   # Online mode: real-time tuning via serial
+  # COM3 is only the default example. Change it to your actual serial port.
   python main.py online --port COM3 --loop speed --interval 10
 
   # Simulation mode: test without hardware
@@ -606,7 +607,7 @@ Serial Protocol (MCU must implement):
 
     parser.add_argument(
         "--config", type=str, default=None,
-        help="Path to config.json (default: ./config.json)",
+        help="Path to config file (default: ./config.json, fallback: ./config.example.json)",
     )
     parser.add_argument(
         "--verbose", "-v", action="store_true",

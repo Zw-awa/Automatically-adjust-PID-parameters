@@ -3,6 +3,8 @@
 Usage:
   python scripts/collect_data.py --port COM3 --loop speed --duration 30
   python scripts/collect_data.py --port COM3 --loop speed --count 500
+
+COM3 is only the default example. Change it to your actual serial port.
 """
 
 from __future__ import annotations

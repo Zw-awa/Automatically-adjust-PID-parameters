@@ -1,271 +1,263 @@
-# PID自动调参系统 - 基于LLM的智能PID参数优化
+# Automatically-adjust-PID-parameters
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Serial-lightgrey.svg)](LICENSE)
 
-## 🎯 项目简介
+Automatically-adjust-PID-parameters 用来根据控制响应数据给出下一轮 PID 参数建议。
 
-这是一个基于大语言模型（LLM）的PID参数自动调优系统。通过DeepSeek API，系统能够智能分析控制系统的性能数据，自动调整PID控制器的Kp、Ki、Kd参数，实现最优控制效果。
+它更适合这样使用：
 
-### ✨ 核心特性
+1. 先用本地分析确认数据和环境没问题
+2. 再用仿真模式熟悉调参流程
+3. 最后把同一套流程接到真实 MCU 串口上
 
-- **🤖 AI智能调参**：使用DeepSeek LLM理解控制原理，提供解释性调参建议
-- **🔧 多模式支持**：在线实时调参、离线数据分析、软件仿真三种工作模式
-- **📊 完整工具链**：数据收集、性能分析、可视化、代码生成一体化
-- **🛡️ 多重安全保护**：参数限制、变化率限制、收敛检测、手动确认机制
-- **🔌 硬件兼容**：标准串口协议，支持各种MCU平台
+## 这个项目是什么
 
-## 🚀 快速开始
+这个项目不是 MCU 控制器本体，而是一个调参助手。
 
-### 1. 环境准备
+它会做这些事：
 
-确保已安装Python 3.8+，然后安装依赖：
+1. 读取一段控制响应数据
+2. 计算超调量、调节时间、稳态误差等指标
+3. 把当前 PID、目标要求和历史记录交给模型
+4. 给出下一轮 `Kp / Ki / Kd` 建议
+5. 在在线模式下把新参数发回设备
+
+你可以把它理解成：
+
+1. 仿真模式下的调参练习工具
+2. 离线模式下的数据分析工具
+3. 在线模式下的串口调参工具
+
+## 项目特色
+
+### 1. 使用路径是逐步展开的
+
+这个项目强调先把每一层单独跑通，再进入下一层：
+
+1. 先本地分析
+2. 再仿真
+3. 再监看串口
+4. 最后在线调参
+
+这样更容易判断问题到底出在：
+
+1. 数据本身
+2. API key
+3. 串口链路
+4. 设备侧实现
+
+### 2. 硬件接入路径直接
+
+项目围绕最常见的串口接入方式组织流程。
+
+你可以直接使用：
+
+1. `monitor_serial.py` 做串口联调
+2. `collect_data.py` 先采一份数据
+3. 离线模式先看指标和建议
+4. `docs/mcu_reference.c` 作为 STM32 HAL 参考
+
+对 STM32 来说，参考代码已经把这些入口提成宏：
+
+1. UART 句柄
+2. TX/RX 引脚
+3. 控制环名字
+
+### 3. 安全策略放在前面
+
+这个项目默认不是“算完就直接改参数”，而是先控制风险。
+
+当前默认策略包括：
+
+1. 参数上下限限制
+2. 单次变化率限制
+3. 历史记录辅助判断
+4. 在线模式默认人工确认
+5. 等待设备 `ACK` 确认
+
+## 运行前需要改什么
+
+第一次使用前，至少确认这几项：
+
+1. 复制 `config.example.json` 为 `config.json`
+2. 配置 `DEEPSEEK_API_KEY`，或者把 key 写进本地 `config.json`
+3. 如果你要接在线模式，把默认 `COM3` 改成你电脑上的实际串口
+4. 如果你要接真实设备，确认 MCU 发出的控制环名字和本地配置一致
+
+## 快速开始
+
+### 1. 克隆仓库
 
 ```bash
-# 克隆项目
-git clone <项目地址>
-cd pid_tuner_project
+git clone https://github.com/Zw-awa/Automatically-adjust-PID-parameters.git
+cd Automatically-adjust-PID-parameters
+```
 
-# 安装依赖
+### 2. 安装依赖
+
+```bash
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 2. 配置API密钥
+建议使用 Python 3.10 或更高版本。
 
-编辑 `config.json` 文件：
-
-```json
-"llm": {
-  "api_key": "你的DeepSeek-API密钥",  // 替换为你的API密钥
-  "base_url": "https://api.deepseek.com",
-  "model": "deepseek-reasoner",
-  "temperature": 0.3
-}
-```
-
-> 💡 **获取API密钥**：访问 [DeepSeek官网](https://platform.deepseek.com/) 注册并获取API密钥
-
-### 3. 首次测试（仿真模式）
-
-无需硬件，快速验证系统功能：
+### 3. 复制本地配置
 
 ```bash
-# 测试速度环的PID调参
+copy config.example.json config.json
+```
+
+### 4. 先跑本地分析
+
+```bash
+python scripts/offline_analyze.py --file data/raw/example_speed_data.csv
+```
+
+这一步最适合先做，因为它不依赖：
+
+1. API key
+2. 串口
+3. MCU
+
+### 5. 再跑仿真
+
+```bash
+python main.py simulate --loop speed --iterations 1
+```
+
+如果 API key 还没配好，这一步可能会在最后的 LLM 调用时报错。先看前面的分析输出是否正常。
+
+## 三种模式
+
+### 仿真模式
+
+```bash
 python main.py simulate --loop speed --iterations 3
 ```
 
-### 4. 使用批处理脚本（Windows用户）
+适合：
 
-```bash
-# 交互式在线调参
-run_online.bat
+1. 第一次上手
+2. 没有硬件时先看流程
+3. 想先确认参数建议长什么样
 
-# 交互式离线分析  
-run_offline.bat
-```
+### 离线模式
 
-## 📖 详细使用指南
-
-### 三种工作模式
-
-#### 🎮 **仿真模式** - 无硬件测试
-```bash
-python main.py simulate --loop speed --iterations 5
-```
-- **适用场景**：学习、演示、算法验证
-- **特点**：内置软件PID模型，无需真实硬件
-
-#### 📁 **离线模式** - 数据分析
 ```bash
 python main.py offline --file data/raw/example_speed_data.csv --loop speed
 ```
-- **适用场景**：历史数据分析、参数优化
-- **数据格式**：CSV文件，包含时间戳、目标值、实际值等
 
-#### 🔌 **在线模式** - 实时调参
+适合：
+
+1. 你已经采到一份数据
+2. 想先分析数据再决定是否在线调参
+
+### 在线模式
+
 ```bash
 python main.py online --port COM3 --loop speed --interval 10
 ```
-- **适用场景**：真实硬件系统调参
-- **硬件要求**：MCU需实现指定串口协议
 
-### 支持的控制环
+说明：
 
-系统预置4种常用控制环，可在 `config.json` 中配置：
+1. `COM3` 只是默认示例
+2. 运行前改成你电脑上的实际串口
 
-| 环名称 | 中文名 | 典型应用 | 默认参数范围 |
-|--------|--------|----------|--------------|
-| `speed` | 速度环 | 电机转速控制 | Kp: 0.01-50 |
-| `steering` | 转向环 | 舵机/方向控制 | Kp: 0.01-100 |
-| `position` | 位置环 | 位置/距离控制 | Kp: 0.001-30 |
-| `current` | 电流环 | 电机电流控制 | Kp: 0.001-10 |
+## 常用脚本
 
-### 串口通信协议
+### 监看串口
 
-MCU端需要实现以下协议：
-
-```c
-// MCU -> PC: 发送数据
-DATA:<loop>:<timestamp>,<target>,<actual>,<error>,<output>\n
-// 示例：DATA:speed:1.2345,100.0,95.3,-4.7,85.2\n
-
-// PC -> MCU: 发送新参数  
-PID:<loop>:<Kp>,<Ki>,<Kd>\n
-// 示例：PID:speed:0.800000,0.150000,0.030000\n
-
-// MCU -> PC: 确认接收
-ACK:<loop>:<Kp>,<Ki>,<Kd>\n
-```
-
-完整MCU参考代码见：`docs/mcu_reference.c`
-
-## 🛠️ 工具脚本
-
-项目提供多个实用脚本：
-
-| 脚本文件 | 功能描述 | 使用示例 |
-|----------|----------|----------|
-| `scripts/monitor_serial.py` | 串口数据监控 | `python scripts/monitor_serial.py COM3` |
-| `scripts/collect_data.py` | 数据采集到CSV | `python scripts/collect_data.py COM3 speed` |
-| `scripts/offline_analyze.py` | 离线数据分析 | `python scripts/offline_analyze.py data.csv` |
-| `scripts/visualize.py` | 性能曲线可视化 | `python scripts/visualize.py --history` |
-| `scripts/convert_to_code.py` | 生成C代码 | `python scripts/convert_to_code.py speed` |
-
-## 📁 项目结构
-
-```
-pid_tuner_project/
-├── core/                    # 核心模块
-│   ├── tuner.py            # LLM调参核心
-│   ├── serial_manager.py   # 串口通信
-│   ├── data_collector.py   # 数据收集
-│   ├── analyzer.py         # 性能分析
-│   ├── history_manager.py  # 历史管理
-│   └── config.py           # 配置管理
-├── scripts/                # 工具脚本
-├── docs/                   # 文档
-├── data/                   # 数据目录
-│   ├── raw/               # 原始数据
-│   ├── processed/         # 处理数据
-│   └── logs/              # 日志文件
-├── outputs/               # 输出目录
-│   ├── figures/           # 图表
-│   └── reports/           # 报告
-├── tests/                 # 测试文件
-├── main.py               # 主程序入口
-├── config.json           # 配置文件
-├── requirements.txt      # 依赖列表
-└── README.md            # 本文档
-```
-
-## 🔧 配置详解
-
-### 主要配置项
-
-```json
-{
-  "serial": {
-    "port": "COM3",           // 串口号
-    "baudrate": 115200,       // 波特率
-    "timeout": 1.0            // 超时时间(秒)
-  },
-  "tuning": {
-    "max_change_ratio": 0.2,  // 最大变化率(20%)
-    "convergence_patience": 3 // 收敛检测次数
-  },
-  "online": {
-    "tune_interval_s": 10,    // 调参间隔(秒)
-    "auto_apply": false       // 是否自动应用参数
-  }
-}
-```
-
-### 添加自定义控制环
-
-在 `config.json` 的 `loops` 部分添加：
-
-```json
-"your_loop": {
-  "name": "自定义环",
-  "pid": {"kp": 1.0, "ki": 0.1, "kd": 0.05},
-  "limits": {"kp": [0.1, 10.0], "ki": [0.0, 5.0], "kd": [0.0, 2.0]},
-  "target_metrics": {
-    "max_overshoot_pct": 10.0,    // 最大超调量(%)
-    "max_settling_time_s": 1.0,   // 最大调节时间(秒)
-    "max_sse_pct": 2.0           // 最大稳态误差(%)
-  }
-}
-```
-
-## 🛡️ 安全机制
-
-1. **参数范围限制**：每个PID参数都有最小/最大值
-2. **变化率限制**：单次调参最多改变20%（可配置）
-3. **收敛自动停止**：连续3次"已收敛"则停止调参
-4. **手动确认机制**：在线模式默认需要人工确认
-5. **振荡检测**：历史管理器检测参数振荡并警告
-6. **MCU端保护**：参考代码包含参数范围检查
-
-## ❓ 常见问题
-
-### Q1: 如何获取DeepSeek API密钥？
-A: 访问 https://platform.deepseek.com/ 注册账号，在控制台创建API密钥。
-
-### Q2: 串口连接失败怎么办？
-A: 检查：
-1. 串口号是否正确（Windows: COM3, Linux: /dev/ttyUSB0）
-2. 波特率是否匹配（默认115200）
-3. 串口线是否正常连接
-4. 是否有其他程序占用串口
-
-### Q3: 数据格式要求？
-A: CSV文件需要包含以下列：
-```
-timestamp,target,actual,error,output
-0.0000,100.0,0.0,100.0,500.0
-0.0100,100.0,4.85,95.15,480.75
-```
-
-### Q4: 如何查看调参历史？
-A: 使用可视化脚本：
 ```bash
-python scripts/visualize.py --history
+python scripts/monitor_serial.py --port COM3
 ```
 
-### Q5: 调参效果不理想？
-A: 尝试：
-1. 调整目标性能指标（降低超调量要求等）
-2. 增加数据采样数量
-3. 检查数据质量（噪声、采样率等）
-4. 手动调整初始参数
+`COM3` 只是默认示例，运行前改成你的实际串口。
 
-## 📈 性能指标
+### 采集串口数据
 
-系统分析以下关键指标：
-- **超调量** (Overshoot)：响应超过目标值的百分比
-- **调节时间** (Settling Time)：进入稳态所需时间
-- **稳态误差** (Steady-State Error)：稳定后的误差百分比
-- **振荡次数** (Oscillations)：响应曲线的振荡次数
+```bash
+python scripts/collect_data.py --port COM3 --loop speed --duration 20
+```
 
-## 🤝 贡献指南
+`COM3` 只是默认示例，运行前改成你的实际串口。
 
-欢迎提交Issue和Pull Request！贡献前请：
-1. 阅读代码规范
-2. 添加相应的测试
-3. 更新相关文档
+### 只做本地分析
 
-## 📄 许可证
+```bash
+python scripts/offline_analyze.py --file data/raw/example_speed_data.csv
+```
 
-本项目基于 MIT 许可证开源 - 查看 [LICENSE](LICENSE) 文件了解详情。
+### 画响应曲线
 
-## 🙏 致谢
+```bash
+python scripts/visualize.py --file data/raw/example_speed_data.csv
+```
 
-- 感谢 DeepSeek 提供强大的LLM API
-- 感谢所有贡献者和用户的支持
-- 特别感谢开源社区的各种工具和库
+### 画调参历史
 
----
+先在 `data/logs/` 里选一份历史文件，再把它传给 `--history`。
 
-**开始你的智能PID调参之旅吧！** 🚀
+### 导出 C 参数
 
-如果有任何问题，请查看详细文档或提交Issue。
+```bash
+python scripts/convert_to_code.py --loop speed
+python scripts/convert_to_code.py --all --format struct
+```
+
+## 项目结构
+
+```text
+Automatically-adjust-PID-parameters/
+├── core/                 核心逻辑
+├── scripts/              辅助脚本
+├── docs/                 使用文档和 STM32 参考代码
+├── data/                 示例数据和运行数据目录
+├── site/                 静态说明页
+├── tests/                本地测试
+├── main.py               主入口
+├── config.example.json   示例配置
+├── requirements.txt      依赖列表
+└── README.md
+```
+
+## STM32 接入
+
+如果你要接 STM32：
+
+1. 先看 `docs/MCU集成指南.md`
+2. 再看 `docs/mcu_reference.c`
+
+`docs/mcu_reference.c` 已经按 STM32 HAL 风格写成参考实现，UART 句柄、TX/RX 引脚和环名字都可以通过宏统一改。
+
+## 常见问题
+
+### `401 Authorization Required`
+
+通常表示：
+
+1. API key 无效
+2. 没配置 key
+3. 程序没有读到 key
+
+### 串口打不开
+
+通常先检查：
+
+1. 端口号是否正确
+2. 波特率是否一致
+3. 是否被其他程序占用
+
+### 在线模式总是样本不足
+
+通常先检查：
+
+1. MCU 是否持续发送 `DATA:`
+2. `loop` 名称是否一致
+3. 串口监看脚本里有没有正常数据
+
+## 许可证
+
+本项目使用 MIT License。详见 [LICENSE](LICENSE)。

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Automatically-adjust-PID-parameters</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Serif:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #11130f;
+      --panel: #161916;
+      --border: #3a4435;
+      --text: #d5dccf;
+      --muted: #9ea994;
+      --green: #98d46d;
+      --amber: #d0ad5f;
+      --cyan: #84c7cb;
+      --shadow: rgba(0, 0, 0, 0.24);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px),
+        radial-gradient(circle at top, rgba(152,212,109,0.08), transparent 30%),
+        var(--bg);
+      background-size: 100% 3px, 3px 100%, auto, auto;
+      color: var(--text);
+      font-family: "IBM Plex Serif", serif;
+      line-height: 1.7;
+    }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover, a:focus-visible { color: var(--green); }
+    code, pre, .mono { font-family: "IBM Plex Mono", monospace; }
+    .shell { min-height: 100vh; display: grid; grid-template-columns: 300px minmax(0, 1fr); }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 20px 18px 28px;
+      background: linear-gradient(180deg, rgba(17,19,15,0.98), rgba(22,25,22,0.96));
+      border-right: 1px solid var(--border);
+      box-shadow: 12px 0 30px var(--shadow);
+    }
+    .brand, nav, .window, .terminal, .card { border: 1px solid var(--border); background: var(--panel); }
+    .brand { padding: 14px 12px; margin-bottom: 18px; }
+    .brand h1 { margin: 0 0 8px; font-family: "IBM Plex Sans", sans-serif; font-size: clamp(1.1rem,1vw + 0.9rem,1.4rem); color: var(--green); text-transform: uppercase; letter-spacing: 0.04em; }
+    .brand p, .statusline, .nav-note, .small, .footer { margin: 0; color: var(--muted); font-size: 0.92rem; }
+    .statusline { display: grid; gap: 6px; padding: 12px; border: 1px dashed var(--border); background: rgba(132,199,203,0.04); margin-bottom: 18px; }
+    .statusline span strong { color: var(--amber); }
+    nav { padding: 12px; }
+    nav h2 { margin: 0 0 12px; font-size: 0.95rem; color: var(--amber); letter-spacing: 0.08em; text-transform: uppercase; font-family: "IBM Plex Sans", sans-serif; }
+    nav a { display: block; padding: 6px 0; color: var(--text); border-bottom: 1px dotted rgba(158,169,148,0.2); }
+    nav a:last-child { border-bottom: 0; }
+    .content { padding: 20px; }
+    .window { max-width: 1080px; margin: 0 auto; box-shadow: 0 24px 60px var(--shadow); }
+    .titlebar { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border); font-family: "IBM Plex Mono", monospace; color: var(--muted); font-size: 0.9rem; }
+    .hero, .section { padding: 22px; border-bottom: 1px solid rgba(58,68,53,0.75); }
+    .section:last-child { border-bottom: 0; }
+    .hero h2, .section h2, .section h3 { margin: 0 0 12px; font-family: "IBM Plex Sans", sans-serif; letter-spacing: 0.03em; }
+    .hero h2 { font-size: clamp(2rem,4vw,3.2rem); line-height: 1.1; color: var(--green); text-transform: uppercase; }
+    .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); }
+    .card { padding: 14px; }
+    .card h3 { margin: 0 0 8px; color: var(--amber); font-size: 1rem; }
+    .list, .steps { margin: 0; padding-left: 20px; }
+    .steps li, .list li { margin-bottom: 10px; }
+    .terminal { margin: 14px 0; background: #0d0f0d; overflow-x: auto; }
+    .terminal .cap { padding: 8px 12px; border-bottom: 1px solid var(--border); background: #151914; color: var(--amber); font-size: 0.9rem; font-family: "IBM Plex Mono", monospace; }
+    pre { margin: 0; padding: 14px 16px; color: var(--green); font-size: 0.94rem; overflow-x: auto; }
+    .callout { padding: 12px 14px; border-left: 3px solid var(--cyan); background: rgba(132,199,203,0.06); color: var(--text); }
+    .footer { padding: 18px 22px 26px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.12); }
+    @media (max-width: 960px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>Automatically-adjust-PID-parameters</h1>
+        <p>先本地分析，再仿真，再接串口，最后在线调参。</p>
+      </div>
+      <div class="statusline mono">
+        <span>模式 <strong>使用说明</strong></span>
+        <span>风格 <strong>简洁手册</strong></span>
+        <span>配置 <strong>config.example.json -> config.json</strong></span>
+      </div>
+      <nav>
+        <h2>目录</h2>
+        <a href="#start">00 / 先看这里</a>
+        <a href="#install">01 / 安装</a>
+        <a href="#configure">02 / 配置</a>
+        <a href="#offline">03 / 先跑本地分析</a>
+        <a href="#simulate">04 / 再跑仿真</a>
+        <a href="#online">05 / 在线模式</a>
+        <a href="#mcu">06 / STM32 接入</a>
+        <a href="#faq">07 / 常见问题</a>
+      </nav>
+      <p class="nav-note" style="margin-top: 14px;">命令行是主入口。批处理脚本只是简化用法。</p>
+    </aside>
+    <main class="content">
+      <div class="window">
+        <div class="titlebar">
+          <span>Automatically-adjust-PID-parameters</span>
+          <span>使用说明页</span>
+        </div>
+        <section class="hero" id="start">
+          <h2>先本地分析，再接硬件</h2>
+        <p>Automatically-adjust-PID-parameters 用来根据控制响应数据给出下一轮 PID 参数建议。第一次使用时，先跑本地分析，再跑仿真，最后再接在线模式。</p>
+          <div class="grid">
+            <article class="card">
+              <h3>你需要准备什么</h3>
+              <p>Python 3.10+、`pip`，以及一枚可用的 DeepSeek API key。</p>
+            </article>
+            <article class="card">
+              <h3>不接硬件也能做什么</h3>
+              <p>看帮助、分析 CSV、跑仿真、导出 C 参数。</p>
+            </article>
+            <article class="card">
+              <h3>什么时候需要硬件</h3>
+              <p>只有在线模式需要 MCU 持续发送 `DATA:` 并接收 `PID:`。</p>
+            </article>
+          </div>
+        </section>
+        <section class="section">
+          <h2>项目特色</h2>
+          <div class="grid">
+            <article class="card">
+              <h3>逐步使用路径</h3>
+              <p>先本地分析，再仿真，再监看串口，最后在线调参。这样更容易判断问题到底出在数据、API key、串口还是设备本身。</p>
+            </article>
+            <article class="card">
+              <h3>硬件接入直接</h3>
+              <p>串口联调、数据采集、离线分析和在线调参是连在一起的。STM32 参考代码已经把 UART 句柄、引脚和环名字提成了宏。</p>
+            </article>
+            <article class="card">
+              <h3>安全策略优先</h3>
+              <p>参数上下限、单次变化率、历史记录、人工确认和 ACK 确认都放在前面，适合真实设备联调。</p>
+            </article>
+          </div>
+        </section>
+        <section class="section" id="install">
+          <h2>01 / 安装</h2>
+          <ol class="steps">
+            <li>克隆仓库。</li>
+            <li>进入项目目录。</li>
+            <li>安装依赖。</li>
+          </ol>
+          <div class="terminal">
+            <div class="cap">shell</div>
+            <pre>git clone https://github.com/Zw-awa/Automatically-adjust-PID-parameters.git
+cd Automatically-adjust-PID-parameters
+python -m pip install --upgrade pip
+pip install -r requirements.txt</pre>
+          </div>
+          <p class="small">建议直接用这里的安装方式，不要自己换一套命令。</p>
+        </section>
+        <section class="section" id="configure">
+          <h2>02 / 配置</h2>
+          <p>先复制示例配置，再改你自己的本地配置。</p>
+          <div class="terminal">
+            <div class="cap">shell</div>
+            <pre>copy config.example.json config.json</pre>
+          </div>
+          <div class="callout">
+            推荐把 API key 放进环境变量 <code>DEEPSEEK_API_KEY</code>。如果你写进 <code>config.json</code> 也可以。
+          </div>
+          <div class="callout" style="margin-top: 12px;">
+            示例配置里的串口默认是 <code>COM3</code>。如果你要接在线模式，记得改成自己电脑上的实际串口。
+          </div>
+        </section>
+        <section class="section" id="offline">
+          <h2>03 / 先跑本地分析</h2>
+          <p>第一次使用时，最值得先跑的是本地分析，因为它不依赖串口和 MCU。</p>
+          <div class="terminal">
+            <div class="cap">shell</div>
+            <pre>python scripts/offline_analyze.py --file data/raw/example_speed_data.csv</pre>
+          </div>
+          <ul class="list">
+            <li>这一步能证明本地分析链路是通的。</li>
+            <li>如果这一步就失败，先不要碰在线模式。</li>
+          </ul>
+        </section>
+        <section class="section" id="simulate">
+          <h2>04 / 再跑仿真</h2>
+          <p>仿真模式会先生成软件响应，再继续走调参流程。</p>
+          <div class="terminal">
+            <div class="cap">shell</div>
+            <pre>python main.py simulate --loop speed --iterations 1</pre>
+          </div>
+          <p class="small">如果 API key 还没配好，这一步可能会在最后的 LLM 调用时报 401。先看前面的分析输出是否正常。</p>
+        </section>
+        <section class="section" id="online">
+          <h2>05 / 在线模式</h2>
+          <p>在线模式前，先确认 MCU 已经持续发送正确的串口数据。</p>
+          <div class="terminal">
+            <div class="cap">shell</div>
+            <pre>python main.py online --port COM3 --loop speed --interval 10</pre>
+          </div>
+          <div class="callout">
+            `COM3` 只是默认示例。运行前改成你电脑上的实际串口。
+          </div>
+          <ol class="steps">
+            <li>先监看串口。</li>
+            <li>再采一份数据。</li>
+            <li>先做一次离线分析。</li>
+            <li>最后再开始在线调参。</li>
+          </ol>
+        </section>
+        <section class="section" id="mcu">
+          <h2>06 / STM32 接入</h2>
+          <p>如果你要接 STM32，先按 <code>docs/mcu_reference.c</code> 把协议打通，再替换成你自己的控制逻辑。</p>
+          <div class="terminal">
+            <div class="cap">protocol</div>
+            <pre>MCU -> PC   DATA:speed:1.2345,100.0,95.3,-4.7,85.2
+PC  -> MCU  PID:speed:0.800000,0.150000,0.030000
+MCU -> PC   ACK:speed:0.800000,0.150000,0.030000
+MCU -> PC   INFO:PID parameters updated successfully</pre>
+          </div>
+          <p>参考文件里已经把 UART 句柄、TX/RX 引脚和环名字写成了宏，直接改顶部宏定义就能换到你的工程。</p>
+        </section>
+        <section class="section" id="faq">
+          <h2>07 / 常见问题</h2>
+          <div class="grid">
+            <article class="card">
+              <h3>401 报错</h3>
+              <p>通常是 API key 无效、没配置，或者程序没有读到 key。</p>
+            </article>
+            <article class="card">
+              <h3>串口打不开</h3>
+              <p>通常先检查端口号、波特率，以及是否被其他软件占用。</p>
+            </article>
+            <article class="card">
+              <h3>样本不足</h3>
+              <p>通常先检查 MCU 是否持续发送 `DATA:`，再检查 `loop` 名称是否一致。</p>
+            </article>
+          </div>
+        </section>
+        <footer class="footer mono">
+          先本地分析，再仿真，再串口联调，最后在线调参。
+        </footer>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,10 +1,10 @@
 @echo off
 echo ================================================
-echo   PID Auto-Tuner - Online Mode
+echo   Automatically-adjust-PID-parameters - Online Mode
 echo ================================================
 echo.
 
-set /p PORT="Enter serial port (e.g. COM3): "
+set /p PORT="Enter serial port (default example COM3, change to your actual port): "
 set /p LOOP="Enter loop name (speed/steering/position/current): "
 set /p INTERVAL="Enter tune interval in seconds (default 10): "
 

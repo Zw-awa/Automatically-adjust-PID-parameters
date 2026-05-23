@@ -4,6 +4,8 @@ Convenience wrapper around main.py online mode.
 
 Usage:
   python scripts/online_tuner.py --port COM3 --loop speed
+
+COM3 is only the default example. Change it to your actual serial port.
 """
 
 from __future__ import annotations

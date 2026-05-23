@@ -1,4 +1,4 @@
-"""Configuration management for PID Auto-Tuner.
+"""Configuration management for Automatically-adjust-PID-parameters.
 
 Loads, validates, and provides access to all configuration settings.
 Supports multiple control loops (speed, steering, position, current).
@@ -15,8 +15,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Default config path (project root)
-DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config.json"
+# Default config paths (project root)
+PROJECT_ROOT = Path(__file__).parent.parent
+DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config.json"
+EXAMPLE_CONFIG_PATH = PROJECT_ROOT / "config.example.json"
 
 
 @dataclass(frozen=True)
@@ -34,7 +36,7 @@ class LLMConfig:
     """LLM API configuration (DeepSeek-compatible).
 
     API key is read from DEEPSEEK_API_KEY env var by default.
-    Falls back to config.json value if env var is not set.
+    Falls back to the loaded config file value if env var is not set.
     """
 
     api_key: str = ""
@@ -192,7 +194,12 @@ def load_config(path: Path | str | None = None) -> AppConfig:
     Returns:
         Parsed AppConfig object.
     """
-    config_path = Path(path) if path else DEFAULT_CONFIG_PATH
+    if path:
+        config_path = Path(path)
+    elif DEFAULT_CONFIG_PATH.exists():
+        config_path = DEFAULT_CONFIG_PATH
+    else:
+        config_path = EXAMPLE_CONFIG_PATH
 
     if not config_path.exists():
         logger.warning("Config file not found at %s, using defaults", config_path)
@@ -246,6 +253,15 @@ def load_config(path: Path | str | None = None) -> AppConfig:
 def save_config(config: AppConfig, path: Path | str | None = None) -> None:
     """Save current configuration to JSON file."""
     config_path = Path(path) if path else DEFAULT_CONFIG_PATH
+    existing_api_key = ""
+
+    if config_path.exists():
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                existing_raw = json.load(f)
+            existing_api_key = existing_raw.get("llm", {}).get("api_key", "")
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning("Failed to read existing config before save: %s", e)
 
     raw: dict[str, Any] = {
         "serial": {
@@ -255,6 +271,7 @@ def save_config(config: AppConfig, path: Path | str | None = None) -> None:
             "encoding": config.serial.encoding,
         },
         "llm": {
+            "api_key": existing_api_key,
             "base_url": config.llm.base_url,
             "model": config.llm.model,
             "model_fallback": config.llm.model_fallback,
