@@ -209,3 +209,9 @@ outputs/figures/*
 outputs/reports/*.txt
 outputs/reports/*.md
 outputs/reports/*.json
+
+# Experimental lab runtime artifacts
+data/lab/*.sqlite3
+data/lab/*.sqlite3-*
+data/raw/lab/*.csv
+data/raw/lab/**/*.csv

@@ -13,8 +13,8 @@ import logging
 import sys
 
 from core.config import load_config
-from core.simulator import simulate_pid_response as _simulate_pid_response
 from core.workflows import run_offline, run_online, run_simulate
+from experimental_lab.server import run_lab_server
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -71,6 +71,12 @@ Serial Protocol (MCU must implement):
     simulate.add_argument("--loop", "-l", required=True, help="Control loop name")
     simulate.add_argument("--iterations", "-n", type=int, default=5, help="Number of iterations")
 
+    lab = subparsers.add_parser("lab", help="Launch the experimental tuning lab")
+    lab.add_argument("--host", default="127.0.0.1", help="Local host for the lab server")
+    lab.add_argument("--port", type=int, default=8765, help="Local port for the lab server")
+    lab.add_argument("--db", default="data/lab/experimental_lab.sqlite3", help="SQLite database path for the lab")
+    lab.add_argument("--no-browser", action="store_true", help="Do not auto-open the lab in the browser")
+
     return parser
 
 
@@ -114,6 +120,14 @@ def main() -> None:
             config=config,
             loop_name=args.loop,
             iterations=args.iterations,
+        )
+    elif args.mode == "lab":
+        run_lab_server(
+            host=args.host,
+            port=args.port,
+            config_path=args.config,
+            db_path=args.db,
+            open_browser=not args.no_browser,
         )
     else:
         parser.print_help()

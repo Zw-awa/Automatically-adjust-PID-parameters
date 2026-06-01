@@ -1,0 +1,1735 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PID Experimental Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;700&family=Newsreader:opsz,wght@6..72,500;6..72,700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0c1111;
+      --bg-glow: radial-gradient(circle at 18% 18%, rgba(116, 220, 185, 0.12), transparent 34%);
+      --panel: rgba(11, 17, 18, 0.86);
+      --panel-strong: rgba(16, 25, 25, 0.96);
+      --panel-soft: rgba(18, 30, 31, 0.72);
+      --border: rgba(136, 175, 169, 0.22);
+      --border-strong: rgba(139, 214, 198, 0.4);
+      --text: #e5efe9;
+      --muted: #8ea7a3;
+      --cyan: #7ae8d6;
+      --teal: #5bc0be;
+      --amber: #f5c36d;
+      --red: #ff7b72;
+      --lime: #9dd67b;
+      --shadow: rgba(0, 0, 0, 0.28);
+      --code: "IBM Plex Mono", monospace;
+      --heading: "Space Grotesk", sans-serif;
+      --body: "Newsreader", serif;
+      --radius: 20px;
+      --radius-tight: 14px;
+      --radius-pill: 999px;
+      --line: 1px solid var(--border);
+      --grid-step: 48px;
+      --panel-blur: blur(18px);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      background:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px),
+        var(--bg-glow),
+        var(--bg);
+      background-size: 100% var(--grid-step), var(--grid-step) 100%, auto, auto;
+      color: var(--text);
+      font-family: var(--body);
+      text-wrap: pretty;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 80% 12%, rgba(123, 214, 255, 0.08), transparent 24%),
+        radial-gradient(circle at 52% 74%, rgba(255, 195, 109, 0.07), transparent 26%);
+      mix-blend-mode: screen;
+      opacity: 0.9;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+      color: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: var(--radius-pill);
+      background: linear-gradient(135deg, rgba(122, 232, 214, 0.2), rgba(91, 192, 190, 0.06));
+      color: var(--text);
+      padding: 11px 16px;
+      transition: transform 140ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+      border: 1px solid rgba(122, 232, 214, 0.22);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.16);
+    }
+
+    button:hover,
+    button:focus-visible {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.22);
+      border-color: rgba(122, 232, 214, 0.38);
+      outline: none;
+    }
+
+    button.secondary {
+      background: rgba(255, 255, 255, 0.02);
+      border-color: rgba(255, 255, 255, 0.09);
+    }
+
+    button.critical {
+      background: linear-gradient(135deg, rgba(255, 123, 114, 0.18), rgba(255, 123, 114, 0.08));
+      border-color: rgba(255, 123, 114, 0.3);
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: default;
+      transform: none;
+      box-shadow: none;
+    }
+
+    select,
+    input,
+    textarea {
+      width: 100%;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      padding: 11px 12px;
+      color: var(--text);
+    }
+
+    textarea {
+      min-height: 108px;
+      resize: vertical;
+    }
+
+    .app-shell {
+      height: 100%;
+      display: grid;
+      grid-template-columns: 310px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      border-right: var(--line);
+      background: linear-gradient(180deg, rgba(8, 14, 14, 0.92), rgba(12, 18, 18, 0.98));
+      backdrop-filter: var(--panel-blur);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .brand,
+    .sidebar-card,
+    .surface,
+    .metric-card,
+    .mini-surface,
+    .event-feed,
+    .table-wrap,
+    .manual-panel,
+    .chart-card,
+    .status-banner {
+      background: var(--panel);
+      backdrop-filter: var(--panel-blur);
+      border: var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 24px 50px var(--shadow);
+    }
+
+    .brand {
+      padding: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .brand::after {
+      content: "";
+      position: absolute;
+      inset: auto -20% -45% 30%;
+      height: 160px;
+      background: radial-gradient(circle, rgba(122, 232, 214, 0.2), transparent 58%);
+      pointer-events: none;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-family: var(--heading);
+      font-size: 1.34rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .brand p,
+    .small,
+    .support {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 0.96rem;
+    }
+
+    .sidebar-card {
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .sidebar-card h2,
+    .panel-title,
+    .section-title {
+      margin: 0;
+      font-family: var(--heading);
+      font-size: 0.98rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .session-list {
+      overflow: auto;
+      display: grid;
+      gap: 12px;
+      min-height: 0;
+      padding-right: 4px;
+    }
+
+    .session-card {
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 13px 14px;
+      background: rgba(255,255,255,0.02);
+      transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+      cursor: pointer;
+    }
+
+    .session-card:hover,
+    .session-card.active {
+      transform: translateY(-2px);
+      border-color: rgba(122, 232, 214, 0.4);
+      background: linear-gradient(180deg, rgba(122, 232, 214, 0.08), rgba(255,255,255,0.02));
+    }
+
+    .session-card header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+    }
+
+    .session-card strong {
+      display: block;
+      font-family: var(--heading);
+      font-size: 1rem;
+    }
+
+    .session-card .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.92rem;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .status-pill,
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border-radius: var(--radius-pill);
+      padding: 5px 10px;
+      font-family: var(--code);
+      font-size: 0.78rem;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .status-pill::before,
+    .tag::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 18px currentColor;
+    }
+
+    .status-idle { color: var(--muted); }
+    .status-running { color: var(--cyan); }
+    .status-paused { color: var(--amber); }
+    .status-completed { color: var(--lime); }
+    .status-failed { color: var(--red); }
+
+    .quality-good { color: var(--lime); }
+    .quality-watch { color: var(--amber); }
+    .quality-critical { color: var(--red); }
+
+    .sidebar-actions,
+    .header-actions,
+    .cluster,
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .content {
+      padding: 18px;
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .status-banner {
+      padding: 16px 18px;
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+    }
+
+    .status-banner h2 {
+      margin: 0;
+      font-family: var(--heading);
+      font-size: clamp(1.4rem, 2vw, 2rem);
+    }
+
+    .status-banner p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      max-width: 70ch;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .metric-card {
+      padding: 14px 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-card::before {
+      content: "";
+      position: absolute;
+      inset: auto -8% -55% 35%;
+      height: 130px;
+      background: radial-gradient(circle, rgba(91, 192, 190, 0.22), transparent 58%);
+      pointer-events: none;
+    }
+
+    .metric-card .label {
+      display: block;
+      font-family: var(--heading);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .metric-card strong {
+      display: block;
+      margin-top: 10px;
+      font-family: var(--heading);
+      font-size: clamp(1.4rem, 2vw, 2.1rem);
+    }
+
+    .metric-card small {
+      color: var(--muted);
+    }
+
+    .dashboard {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(320px, 0.95fr);
+      gap: 16px;
+    }
+
+    .main-stack,
+    .side-stack {
+      min-height: 0;
+      display: grid;
+      gap: 16px;
+    }
+
+    .main-stack {
+      grid-template-rows: minmax(0, 0.96fr) minmax(0, 1fr);
+    }
+
+    .side-stack {
+      grid-template-rows: minmax(0, 0.96fr) minmax(0, 1fr);
+    }
+
+    .surface {
+      padding: 16px;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .surface-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .charts-grid {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .chart-card {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .chart-card h3,
+    .manual-panel h3 {
+      margin: 0;
+      font-family: var(--heading);
+      font-size: 0.95rem;
+      letter-spacing: 0.03em;
+    }
+
+    .chart-card canvas {
+      width: 100%;
+      height: 100%;
+      min-height: 220px;
+      border-radius: 12px;
+      background:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px),
+        rgba(2, 7, 7, 0.7);
+      background-size: 100% 44px, 54px 100%, auto;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .table-wrap {
+      overflow: auto;
+      min-height: 0;
+      border-radius: 18px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--code);
+      font-size: 0.82rem;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: rgba(5, 9, 9, 0.94);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 500;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    td, th {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      transition: background 160ms ease;
+    }
+
+    tbody tr:hover {
+      background: rgba(122, 232, 214, 0.05);
+    }
+
+    tbody tr.highlight {
+      animation: pulseRow 1.8s ease;
+    }
+
+    @keyframes pulseRow {
+      0% { background: rgba(122, 232, 214, 0.22); }
+      100% { background: transparent; }
+    }
+
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      min-height: 0;
+    }
+
+    .mini-surface {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .event-feed {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .event-log {
+      overflow: auto;
+      display: grid;
+      gap: 10px;
+      padding-right: 6px;
+      min-height: 0;
+    }
+
+    .event-item {
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.06);
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.02);
+      font-family: var(--code);
+      font-size: 0.82rem;
+    }
+
+    .event-item strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--cyan);
+      font-family: var(--heading);
+      font-size: 0.88rem;
+    }
+
+    .manual-panel {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .field-stack {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field-stack label {
+      color: var(--muted);
+      font-family: var(--heading);
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .toggle-card {
+      border: 1px dashed rgba(255,255,255,0.1);
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.02);
+      color: var(--muted);
+    }
+
+    .empty-state {
+      border: 1px dashed rgba(255,255,255,0.12);
+      border-radius: 18px;
+      padding: 28px 24px;
+      color: var(--muted);
+      min-height: 240px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+    }
+
+    .mono {
+      font-family: var(--code);
+    }
+
+    .split-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .danger-zone {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding-top: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 1380px) {
+      .metric-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .dashboard {
+        grid-template-columns: 1fr;
+      }
+
+      .side-stack {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: none;
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        max-height: 44vh;
+        border-right: none;
+        border-bottom: var(--line);
+      }
+
+      .content {
+        grid-template-rows: auto auto auto;
+      }
+
+      .charts-grid,
+      .mini-grid,
+      .form-grid,
+      .metric-grid,
+      .side-stack {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <section class="brand">
+        <h1>PID Experimental Lab</h1>
+        <p>在同一个本地实验台里运行 `LLM / BO / Hybrid`，持续记录每一轮参数、指标、分数和策略反馈。</p>
+      </section>
+
+      <section class="sidebar-card">
+        <div class="split-row">
+          <h2>Sessions</h2>
+          <button id="new-session-button">New Session</button>
+        </div>
+        <div class="field-stack">
+          <label for="session-filter">Filter</label>
+          <input id="session-filter" type="text" placeholder="按名称、loop 或策略过滤">
+        </div>
+        <div class="session-list" id="session-list">
+          <div class="empty-state">还没有会话。先创建一个 `simulate` 或 `offline` 实验台。</div>
+        </div>
+      </section>
+
+      <section class="sidebar-card">
+        <h2>Quick Start</h2>
+        <div class="toggle-card">
+          推荐第一步：先建一个 `simulate + hybrid` 会话，观察分数和参数轨迹如何变化，再导入你的离线 CSV 做基线比较。
+        </div>
+        <div class="support mono" id="connection-status">Connecting...</div>
+      </section>
+    </aside>
+
+    <main class="content">
+      <section class="status-banner">
+        <div>
+          <div class="cluster" style="margin-bottom: 10px;">
+            <span class="tag" id="active-mode-tag">Mode</span>
+            <span class="tag" id="active-strategy-tag">Strategy</span>
+            <span class="tag" id="active-loop-tag">Loop</span>
+          </div>
+          <h2 id="active-session-name">No Session Selected</h2>
+          <p id="active-session-notes">创建会话后，这里会显示当前实验状态、下一步建议和最近一次策略反馈。</p>
+        </div>
+        <div class="header-actions">
+          <button id="start-button" disabled>Start</button>
+          <button id="pause-button" class="secondary" disabled>Pause</button>
+          <button id="resume-button" class="secondary" disabled>Resume</button>
+          <button id="stop-button" class="secondary" disabled>Stop</button>
+          <button id="rename-button" class="secondary" disabled>Rename</button>
+        </div>
+      </section>
+
+      <section class="metric-grid">
+        <article class="metric-card">
+          <span class="label">Status</span>
+          <strong id="metric-status">Idle</strong>
+          <small id="metric-status-detail">等待会话启动</small>
+        </article>
+        <article class="metric-card">
+          <span class="label">Records</span>
+          <strong id="metric-records">0</strong>
+          <small id="metric-good-count">Good 0</small>
+        </article>
+        <article class="metric-card">
+          <span class="label">Best Score</span>
+          <strong id="metric-best-score">--</strong>
+          <small>越低越好</small>
+        </article>
+        <article class="metric-card">
+          <span class="label">Current PID</span>
+          <strong id="metric-current-pid" class="mono">Kp --</strong>
+          <small id="metric-pid-detail" class="mono">Ki -- | Kd --</small>
+        </article>
+        <article class="metric-card">
+          <span class="label">Latest Suggestion</span>
+          <strong id="metric-latest-strategy">--</strong>
+          <small id="metric-latest-improvement">等待策略建议</small>
+        </article>
+      </section>
+
+      <section class="dashboard">
+        <div class="main-stack">
+          <section class="surface">
+            <div class="surface-header">
+              <div>
+                <h2 class="panel-title">Experimental Traces</h2>
+                <p class="small">趋势图和参数空间点位会随着记录追加而增量更新。</p>
+              </div>
+            </div>
+            <div class="charts-grid">
+              <article class="chart-card">
+                <h3>Score vs Iteration</h3>
+                <canvas id="score-chart" width="720" height="260"></canvas>
+              </article>
+              <article class="chart-card">
+                <h3>PID Trajectory</h3>
+                <canvas id="pid-chart" width="720" height="260"></canvas>
+              </article>
+              <article class="chart-card">
+                <h3>Kp / Ki Projection</h3>
+                <canvas id="kp-ki-chart" width="720" height="260"></canvas>
+              </article>
+              <article class="chart-card">
+                <h3>Kp / Kd Projection</h3>
+                <canvas id="kp-kd-chart" width="720" height="260"></canvas>
+              </article>
+            </div>
+          </section>
+
+          <section class="surface">
+            <div class="surface-header">
+              <div>
+                <h2 class="panel-title">Records</h2>
+                <p class="small">自动记录每轮实验结果；手动补录的记录也会进入同一条时间线。</p>
+              </div>
+              <div class="button-row">
+                <button id="refresh-button" class="secondary">Refresh</button>
+                <button id="clear-records-button" class="critical" disabled>Clear Records</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Source</th>
+                    <th>PID</th>
+                    <th>Score</th>
+                    <th>Overshoot</th>
+                    <th>Settling</th>
+                    <th>SSE</th>
+                    <th>Osc</th>
+                    <th>Quality</th>
+                    <th>Reason</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="records-body">
+                  <tr>
+                    <td colspan="11">
+                      <div class="empty-state">当前会话还没有记录。</div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div class="side-stack">
+          <section class="event-feed">
+            <div class="surface-header">
+              <div>
+                <h2 class="panel-title">Live Events</h2>
+                <p class="small">运行阶段、写库、策略建议和状态切换都在这里滚动追加。</p>
+              </div>
+            </div>
+            <div class="event-log" id="event-log">
+              <div class="empty-state">事件流会在会话运行后开始滚动。</div>
+            </div>
+          </section>
+
+          <section class="manual-panel">
+            <div class="surface-header">
+              <div>
+                <h2 class="panel-title">Manual Record</h2>
+                <p class="small">录入 PID、核心指标和备注，系统自动计算 score 与质量标签。</p>
+              </div>
+            </div>
+            <div class="field-stack">
+              <label for="record-reason">Reason</label>
+              <input id="record-reason" type="text" placeholder="例如：手工试出更平稳的参数">
+            </div>
+            <div class="form-grid">
+              <div class="field-stack">
+                <label for="record-kp">Kp</label>
+                <input id="record-kp" type="number" step="0.0001">
+              </div>
+              <div class="field-stack">
+                <label for="record-ki">Ki</label>
+                <input id="record-ki" type="number" step="0.0001">
+              </div>
+              <div class="field-stack">
+                <label for="record-kd">Kd</label>
+                <input id="record-kd" type="number" step="0.0001">
+              </div>
+              <div class="field-stack">
+                <label for="record-overshoot">Overshoot %</label>
+                <input id="record-overshoot" type="number" step="0.01">
+              </div>
+              <div class="field-stack">
+                <label for="record-settling">Settling s</label>
+                <input id="record-settling" type="number" step="0.001">
+              </div>
+              <div class="field-stack">
+                <label for="record-sse">SSE %</label>
+                <input id="record-sse" type="number" step="0.01">
+              </div>
+              <div class="field-stack">
+                <label for="record-oscillation">Oscillation</label>
+                <input id="record-oscillation" type="number" step="1">
+              </div>
+              <div class="field-stack">
+                <label for="record-diverging">Diverging</label>
+                <select id="record-diverging">
+                  <option value="false">No</option>
+                  <option value="true">Yes</option>
+                </select>
+              </div>
+              <div class="field-stack">
+                <label for="record-saturated">Saturated</label>
+                <select id="record-saturated">
+                  <option value="false">No</option>
+                  <option value="true">Yes</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-stack">
+              <label for="record-note">Note</label>
+              <textarea id="record-note" placeholder="可记录现场观察、工况说明或为何要保留这一点。"></textarea>
+            </div>
+            <div class="button-row">
+              <button id="add-record-button" disabled>Add Manual Record</button>
+              <button id="prefill-button" class="secondary" disabled>Prefill Current PID</button>
+            </div>
+            <div class="danger-zone">
+              <div class="field-stack">
+                <label for="offline-file-select">Offline CSV</label>
+                <select id="offline-file-select"></select>
+              </div>
+              <button id="attach-offline-file-button" class="secondary" disabled>Attach Offline File To Session</button>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const appState = {
+      config: null,
+      sessions: [],
+      activeSessionId: null,
+      activeSnapshot: null,
+      socket: null,
+      charts: {},
+      highlightRecordId: null,
+      filter: "",
+      pendingRename: false,
+    };
+
+    const dom = {
+      sessionList: document.getElementById("session-list"),
+      sessionFilter: document.getElementById("session-filter"),
+      connectionStatus: document.getElementById("connection-status"),
+      newSessionButton: document.getElementById("new-session-button"),
+      startButton: document.getElementById("start-button"),
+      pauseButton: document.getElementById("pause-button"),
+      resumeButton: document.getElementById("resume-button"),
+      stopButton: document.getElementById("stop-button"),
+      renameButton: document.getElementById("rename-button"),
+      refreshButton: document.getElementById("refresh-button"),
+      clearRecordsButton: document.getElementById("clear-records-button"),
+      addRecordButton: document.getElementById("add-record-button"),
+      prefillButton: document.getElementById("prefill-button"),
+      attachOfflineFileButton: document.getElementById("attach-offline-file-button"),
+      offlineFileSelect: document.getElementById("offline-file-select"),
+      activeSessionName: document.getElementById("active-session-name"),
+      activeSessionNotes: document.getElementById("active-session-notes"),
+      activeModeTag: document.getElementById("active-mode-tag"),
+      activeStrategyTag: document.getElementById("active-strategy-tag"),
+      activeLoopTag: document.getElementById("active-loop-tag"),
+      metricStatus: document.getElementById("metric-status"),
+      metricStatusDetail: document.getElementById("metric-status-detail"),
+      metricRecords: document.getElementById("metric-records"),
+      metricGoodCount: document.getElementById("metric-good-count"),
+      metricBestScore: document.getElementById("metric-best-score"),
+      metricCurrentPid: document.getElementById("metric-current-pid"),
+      metricPidDetail: document.getElementById("metric-pid-detail"),
+      metricLatestStrategy: document.getElementById("metric-latest-strategy"),
+      metricLatestImprovement: document.getElementById("metric-latest-improvement"),
+      recordsBody: document.getElementById("records-body"),
+      eventLog: document.getElementById("event-log"),
+      recordReason: document.getElementById("record-reason"),
+      recordKp: document.getElementById("record-kp"),
+      recordKi: document.getElementById("record-ki"),
+      recordKd: document.getElementById("record-kd"),
+      recordOvershoot: document.getElementById("record-overshoot"),
+      recordSettling: document.getElementById("record-settling"),
+      recordSse: document.getElementById("record-sse"),
+      recordOscillation: document.getElementById("record-oscillation"),
+      recordDiverging: document.getElementById("record-diverging"),
+      recordSaturated: document.getElementById("record-saturated"),
+      recordNote: document.getElementById("record-note"),
+    };
+
+    const chartSpec = {
+      score: { key: "score", color: "#7ae8d6", label: "score", minHeight: 0.1 },
+      kp: { key: "kp", color: "#7ae8d6", label: "Kp" },
+      ki: { key: "ki", color: "#f5c36d", label: "Ki" },
+      kd: { key: "kd", color: "#ff7b72", label: "Kd" },
+    };
+
+    function formatNumber(value, digits = 3) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return "--";
+      }
+      return Number(value).toFixed(digits);
+    }
+
+    function qualityClass(label) {
+      return label ? `quality-${label}` : "";
+    }
+
+    function statusClass(status) {
+      return `status-${status || "idle"}`;
+    }
+
+    async function apiFetch(path, options = {}) {
+      const response = await fetch(path, {
+        headers: { "Content-Type": "application/json" },
+        ...options,
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `${response.status} ${response.statusText}`);
+      }
+      return response.json();
+    }
+
+    async function bootstrap() {
+      await Promise.all([loadConfig(), loadSessions(), loadOfflineFiles()]);
+      bindEvents();
+      connectSocket();
+      render();
+    }
+
+    async function loadConfig() {
+      const data = await apiFetch("/api/config");
+      appState.config = data;
+    }
+
+    async function loadSessions() {
+      const data = await apiFetch("/api/sessions");
+      appState.sessions = data.sessions;
+      if (appState.activeSessionId === null && appState.sessions.length > 0) {
+        appState.activeSessionId = appState.sessions[0].id;
+        await loadSessionSnapshot(appState.activeSessionId);
+      } else if (appState.activeSessionId !== null) {
+        const existing = appState.sessions.find((session) => session.id === appState.activeSessionId);
+        if (existing) {
+          await loadSessionSnapshot(appState.activeSessionId);
+        } else {
+          appState.activeSessionId = appState.sessions[0]?.id ?? null;
+          appState.activeSnapshot = null;
+          if (appState.activeSessionId !== null) {
+            await loadSessionSnapshot(appState.activeSessionId);
+          }
+        }
+      }
+    }
+
+    async function loadSessionSnapshot(sessionId) {
+      const snapshot = await apiFetch(`/api/sessions/${sessionId}`);
+      appState.activeSnapshot = snapshot;
+      appState.activeSessionId = sessionId;
+      if (snapshot.session.mode === "offline" && snapshot.session.settings.offline_file) {
+        dom.offlineFileSelect.value = snapshot.session.settings.offline_file;
+      }
+      render();
+    }
+
+    async function loadOfflineFiles() {
+      const data = await apiFetch("/api/files");
+      dom.offlineFileSelect.innerHTML = "";
+      const empty = document.createElement("option");
+      empty.value = "";
+      empty.textContent = "选择 data/raw 下的 CSV 文件";
+      dom.offlineFileSelect.appendChild(empty);
+      data.files.forEach((file) => {
+        const option = document.createElement("option");
+        option.value = file;
+        option.textContent = file;
+        dom.offlineFileSelect.appendChild(option);
+      });
+    }
+
+    function bindEvents() {
+      dom.newSessionButton.addEventListener("click", createSessionFlow);
+      dom.startButton.addEventListener("click", () => runAction("start"));
+      dom.pauseButton.addEventListener("click", () => runAction("pause"));
+      dom.resumeButton.addEventListener("click", () => runAction("resume"));
+      dom.stopButton.addEventListener("click", () => runAction("stop"));
+      dom.renameButton.addEventListener("click", renameSessionFlow);
+      dom.refreshButton.addEventListener("click", async () => {
+        if (appState.activeSessionId !== null) {
+          await loadSessionSnapshot(appState.activeSessionId);
+        }
+      });
+      dom.clearRecordsButton.addEventListener("click", clearRecordsFlow);
+      dom.addRecordButton.addEventListener("click", addManualRecordFlow);
+      dom.prefillButton.addEventListener("click", prefillManualPid);
+      dom.attachOfflineFileButton.addEventListener("click", attachOfflineFileFlow);
+      dom.sessionFilter.addEventListener("input", (event) => {
+        appState.filter = event.target.value.trim().toLowerCase();
+        renderSessionList();
+      });
+    }
+
+    async function createSessionFlow() {
+      if (!appState.config) {
+        return;
+      }
+      const name = window.prompt("Session name", `session-${Date.now()}`);
+      if (!name) {
+        return;
+      }
+      const loopOptions = appState.config.loops.map((loop) => loop.key).join(", ");
+      const loopName = window.prompt(`Loop name (${loopOptions})`, appState.config.loops[0].key);
+      if (!loopName) {
+        return;
+      }
+      const mode = window.prompt("Mode (simulate / offline)", "simulate");
+      if (!mode) {
+        return;
+      }
+      const strategy = window.prompt("Strategy (llm / bo / hybrid)", "hybrid");
+      if (!strategy) {
+        return;
+      }
+      const settings = {};
+      if (mode === "offline") {
+        const picked = dom.offlineFileSelect.value || "data/raw/example_speed_data.csv";
+        settings.offline_file = picked;
+      }
+      const data = await apiFetch("/api/sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          loop_name: loopName,
+          mode,
+          strategy,
+          settings,
+        }),
+      });
+      appState.activeSessionId = data.session.id;
+      await loadSessions();
+      render();
+    }
+
+    async function renameSessionFlow() {
+      const session = appState.activeSnapshot?.session;
+      if (!session) {
+        return;
+      }
+      const name = window.prompt("Rename session", session.name);
+      if (!name || name === session.name) {
+        return;
+      }
+      await apiFetch(`/api/sessions/${session.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name }),
+      });
+      await loadSessions();
+    }
+
+    async function attachOfflineFileFlow() {
+      const session = appState.activeSnapshot?.session;
+      if (!session) {
+        return;
+      }
+      const offlineFile = dom.offlineFileSelect.value;
+      await apiFetch(`/api/sessions/${session.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ settings: { offline_file: offlineFile } }),
+      });
+      await loadSessionSnapshot(session.id);
+    }
+
+    async function clearRecordsFlow() {
+      const session = appState.activeSnapshot?.session;
+      if (!session) {
+        return;
+      }
+      if (!window.confirm(`Clear all records in "${session.name}"?`)) {
+        return;
+      }
+      await apiFetch(`/api/sessions/${session.id}/records`, { method: "DELETE" });
+      await loadSessionSnapshot(session.id);
+    }
+
+    async function addManualRecordFlow() {
+      const session = appState.activeSnapshot?.session;
+      if (!session) {
+        return;
+      }
+      const payload = {
+        pid: {
+          kp: Number(dom.recordKp.value || 0),
+          ki: Number(dom.recordKi.value || 0),
+          kd: Number(dom.recordKd.value || 0),
+        },
+        metrics: {
+          overshoot_pct: Number(dom.recordOvershoot.value || 0),
+          settling_time_s: Number(dom.recordSettling.value || 0),
+          steady_state_error_pct: Number(dom.recordSse.value || 0),
+          oscillation_count: Number(dom.recordOscillation.value || 0),
+          is_diverging: dom.recordDiverging.value === "true",
+          is_saturated: dom.recordSaturated.value === "true",
+        },
+        reason: dom.recordReason.value || "Manual observation",
+        note: dom.recordNote.value || "",
+        confidence: 0.55,
+        expected_improvement: "User-supplied checkpoint for comparison.",
+      };
+      await apiFetch(`/api/sessions/${session.id}/records`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      dom.recordReason.value = "";
+      dom.recordNote.value = "";
+      await loadSessionSnapshot(session.id);
+    }
+
+    function prefillManualPid() {
+      const session = appState.activeSnapshot?.session;
+      if (!session) {
+        return;
+      }
+      const pid = session.current_pid || {};
+      dom.recordKp.value = pid.kp ?? "";
+      dom.recordKi.value = pid.ki ?? "";
+      dom.recordKd.value = pid.kd ?? "";
+      dom.recordReason.value = dom.recordReason.value || "Prefilled from current PID";
+    }
+
+    async function runAction(action) {
+      const session = appState.activeSnapshot?.session;
+      if (!session) {
+        return;
+      }
+      await apiFetch(`/api/sessions/${session.id}/run/${action}`, {
+        method: "POST",
+        body: "{}",
+      });
+      await loadSessionSnapshot(session.id);
+    }
+
+    function connectSocket() {
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const socket = new WebSocket(`${protocol}://${window.location.host}/ws`);
+      appState.socket = socket;
+      socket.addEventListener("open", () => {
+        dom.connectionStatus.textContent = "Realtime link active";
+      });
+      socket.addEventListener("close", () => {
+        dom.connectionStatus.textContent = "Realtime link lost, retrying...";
+        setTimeout(connectSocket, 1200);
+      });
+      socket.addEventListener("error", () => {
+        dom.connectionStatus.textContent = "Realtime link error";
+      });
+      socket.addEventListener("message", async (event) => {
+        const message = JSON.parse(event.data);
+        if (message.type === "session.deleted") {
+          appState.sessions = appState.sessions.filter((session) => session.id !== message.session_id);
+          if (appState.activeSessionId === message.session_id) {
+            appState.activeSessionId = appState.sessions[0]?.id ?? null;
+            appState.activeSnapshot = null;
+            if (appState.activeSessionId !== null) {
+              await loadSessionSnapshot(appState.activeSessionId);
+            }
+          }
+          render();
+          return;
+        }
+        if (message.payload?.session) {
+          mergeSession(message.payload.session);
+        }
+        if (appState.activeSessionId === message.session_id && appState.activeSessionId !== null) {
+          if (!appState.activeSnapshot) {
+            await loadSessionSnapshot(appState.activeSessionId);
+            return;
+          }
+          if (message.type === "record.added" && message.payload.record) {
+            upsertRecord(message.payload.record);
+            appState.highlightRecordId = message.payload.record.id;
+          }
+          if (message.type === "record.deleted" && message.payload.record_id) {
+            removeRecord(message.payload.record_id);
+          }
+          if (message.type === "records.cleared") {
+            appState.activeSnapshot.records = [];
+            appState.activeSnapshot.events = [];
+          }
+          if (message.payload?.session) {
+            appState.activeSnapshot.session = message.payload.session;
+          }
+          appendEventMessage(message);
+          render();
+        } else if (message.payload?.session) {
+          renderSessionList();
+        }
+      });
+    }
+
+    function mergeSession(session) {
+      const index = appState.sessions.findIndex((item) => item.id === session.id);
+      if (index >= 0) {
+        appState.sessions[index] = session;
+      } else {
+        appState.sessions.unshift(session);
+      }
+    }
+
+    function upsertRecord(record) {
+      if (!appState.activeSnapshot) {
+        return;
+      }
+      const records = appState.activeSnapshot.records || [];
+      const index = records.findIndex((item) => item.id === record.id);
+      if (index >= 0) {
+        records[index] = record;
+      } else {
+        records.push(record);
+      }
+      records.sort((left, right) => left.iteration_index - right.iteration_index || left.id - right.id);
+      appState.activeSnapshot.records = records;
+    }
+
+    function removeRecord(recordId) {
+      if (!appState.activeSnapshot) {
+        return;
+      }
+      appState.activeSnapshot.records = (appState.activeSnapshot.records || []).filter((record) => record.id !== recordId);
+    }
+
+    function appendEventMessage(message) {
+      if (!appState.activeSnapshot) {
+        return;
+      }
+      const events = appState.activeSnapshot.events || [];
+      events.push({
+        session_id: message.session_id,
+        event_type: message.type,
+        payload: message.payload,
+        created_at: message.created_at,
+      });
+      appState.activeSnapshot.events = events.slice(-80);
+    }
+
+    function render() {
+      renderSessionList();
+      renderActiveSession();
+      renderRecords();
+      renderEvents();
+      renderCharts();
+      renderActionAvailability();
+    }
+
+    function renderSessionList() {
+      const sessions = appState.sessions
+        .filter((session) => {
+          if (!appState.filter) {
+            return true;
+          }
+          const haystack = `${session.name} ${session.loop_name} ${session.strategy} ${session.mode}`.toLowerCase();
+          return haystack.includes(appState.filter);
+        });
+
+      if (sessions.length === 0) {
+        dom.sessionList.innerHTML = '<div class="empty-state">没有匹配的会话。</div>';
+        return;
+      }
+
+      dom.sessionList.innerHTML = "";
+      sessions.forEach((session) => {
+        const card = document.createElement("article");
+        card.className = `session-card${session.id === appState.activeSessionId ? " active" : ""}`;
+        card.innerHTML = `
+          <header>
+            <strong>${escapeHtml(session.name)}</strong>
+            <span class="status-pill ${statusClass(session.status)}">${escapeHtml(session.status)}</span>
+          </header>
+          <div class="row"><span>${escapeHtml(session.loop_name)}</span><span>${escapeHtml(session.mode)} / ${escapeHtml(session.strategy)}</span></div>
+          <div class="row"><span>records ${session.record_count}</span><span>best ${session.best_score === null ? "--" : formatNumber(session.best_score, 2)}</span></div>
+        `;
+        card.addEventListener("click", async () => {
+          await loadSessionSnapshot(session.id);
+        });
+        dom.sessionList.appendChild(card);
+      });
+    }
+
+    function renderActiveSession() {
+      const snapshot = appState.activeSnapshot;
+      if (!snapshot) {
+        dom.activeSessionName.textContent = "No Session Selected";
+        dom.activeSessionNotes.textContent = "创建会话后，这里会显示当前实验状态、下一步建议和最近一次策略反馈。";
+        dom.activeModeTag.textContent = "Mode";
+        dom.activeStrategyTag.textContent = "Strategy";
+        dom.activeLoopTag.textContent = "Loop";
+        dom.metricStatus.textContent = "Idle";
+        dom.metricStatusDetail.textContent = "等待会话启动";
+        dom.metricRecords.textContent = "0";
+        dom.metricGoodCount.textContent = "Good 0";
+        dom.metricBestScore.textContent = "--";
+        dom.metricCurrentPid.textContent = "Kp --";
+        dom.metricPidDetail.textContent = "Ki -- | Kd --";
+        dom.metricLatestStrategy.textContent = "--";
+        dom.metricLatestImprovement.textContent = "等待策略建议";
+        return;
+      }
+
+      const session = snapshot.session;
+      const lastSuggestion = session.settings?.last_suggestion || null;
+      dom.activeSessionName.textContent = session.name;
+      dom.activeSessionNotes.textContent = session.notes || describeSession(session, lastSuggestion);
+      dom.activeModeTag.textContent = `mode ${session.mode}`;
+      dom.activeStrategyTag.textContent = `strategy ${session.strategy}`;
+      dom.activeLoopTag.textContent = `loop ${session.loop_name}`;
+      dom.metricStatus.textContent = session.status;
+      dom.metricStatus.className = statusClass(session.status);
+      dom.metricStatusDetail.textContent = lastSuggestion?.reason || `记录数 ${session.record_count}`;
+      dom.metricRecords.textContent = String(session.record_count);
+      dom.metricGoodCount.textContent = `Good ${session.good_count}`;
+      dom.metricBestScore.textContent = session.best_score === null ? "--" : formatNumber(session.best_score, 2);
+      dom.metricCurrentPid.textContent = `Kp ${formatNumber(session.current_pid.kp, 4)}`;
+      dom.metricPidDetail.textContent = `Ki ${formatNumber(session.current_pid.ki, 4)} | Kd ${formatNumber(session.current_pid.kd, 4)}`;
+      dom.metricLatestStrategy.textContent = lastSuggestion?.model_used || "--";
+      dom.metricLatestImprovement.textContent = lastSuggestion?.expected_improvement || "等待策略建议";
+    }
+
+    function describeSession(session, lastSuggestion) {
+      if (lastSuggestion?.reason) {
+        return lastSuggestion.reason;
+      }
+      if (session.mode === "offline") {
+        return "离线会话会先记录基线，再给出下一组参数建议，后续可以手动补录新实验点。";
+      }
+      return "仿真会话会自动运行多轮实验，持续追加新的观测点和策略建议。";
+    }
+
+    function renderRecords() {
+      const records = appState.activeSnapshot?.records || [];
+      if (records.length === 0) {
+        dom.recordsBody.innerHTML = '<tr><td colspan="11"><div class="empty-state">当前会话还没有记录。</div></td></tr>';
+        return;
+      }
+
+      dom.recordsBody.innerHTML = "";
+      records.forEach((record) => {
+        const row = document.createElement("tr");
+        if (record.id === appState.highlightRecordId) {
+          row.classList.add("highlight");
+        }
+        row.innerHTML = `
+          <td>${record.iteration_index}</td>
+          <td>${escapeHtml(record.source)}</td>
+          <td>Kp ${formatNumber(record.pid.kp, 4)}<br>Ki ${formatNumber(record.pid.ki, 4)}<br>Kd ${formatNumber(record.pid.kd, 4)}</td>
+          <td>${record.score === null ? "--" : formatNumber(record.score, 2)}</td>
+          <td>${formatNumber(record.metrics.overshoot_pct, 2)}%</td>
+          <td>${formatNumber(record.metrics.settling_time_s, 3)}s</td>
+          <td>${formatNumber(record.metrics.steady_state_error_pct, 2)}%</td>
+          <td>${record.metrics.oscillation_count}</td>
+          <td><span class="status-pill ${qualityClass(record.quality_label)}">${escapeHtml(record.quality_label || "--")}</span></td>
+          <td title="${escapeHtml(record.reason)}">${escapeHtml(shorten(record.reason, 78))}</td>
+          <td><button class="secondary" data-record-delete="${record.id}">Delete</button></td>
+        `;
+        dom.recordsBody.appendChild(row);
+      });
+
+      dom.recordsBody.querySelectorAll("[data-record-delete]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const recordId = Number(button.getAttribute("data-record-delete"));
+          if (!window.confirm(`Delete record #${recordId}?`)) {
+            return;
+          }
+          await apiFetch(`/api/records/${recordId}`, { method: "DELETE" });
+          if (appState.activeSessionId !== null) {
+            await loadSessionSnapshot(appState.activeSessionId);
+          }
+        });
+      });
+    }
+
+    function renderEvents() {
+      const events = appState.activeSnapshot?.events || [];
+      if (events.length === 0) {
+        dom.eventLog.innerHTML = '<div class="empty-state">事件流会在会话运行后开始滚动。</div>';
+        return;
+      }
+      dom.eventLog.innerHTML = "";
+      events.slice(-80).reverse().forEach((event) => {
+        const item = document.createElement("div");
+        item.className = "event-item";
+        item.innerHTML = `
+          <strong>${escapeHtml(event.event_type)}</strong>
+          <div>${escapeHtml(summarizeEvent(event.payload))}</div>
+          <div class="small mono">${escapeHtml(event.created_at)}</div>
+        `;
+        dom.eventLog.appendChild(item);
+      });
+    }
+
+    function renderCharts() {
+      const records = appState.activeSnapshot?.records || [];
+      ensureCharts();
+      drawScoreChart(records);
+      drawPidChart(records);
+      drawScatterChart("kpKi", records, "kp", "ki");
+      drawScatterChart("kpKd", records, "kp", "kd");
+    }
+
+    function renderActionAvailability() {
+      const session = appState.activeSnapshot?.session;
+      const hasSession = Boolean(session);
+      dom.startButton.disabled = !hasSession || session.status === "running";
+      dom.pauseButton.disabled = !hasSession || session.status !== "running";
+      dom.resumeButton.disabled = !hasSession || session.status !== "paused";
+      dom.stopButton.disabled = !hasSession || (session.status !== "running" && session.status !== "paused");
+      dom.renameButton.disabled = !hasSession;
+      dom.clearRecordsButton.disabled = !hasSession;
+      dom.addRecordButton.disabled = !hasSession;
+      dom.prefillButton.disabled = !hasSession;
+      dom.attachOfflineFileButton.disabled = !hasSession || session.mode !== "offline";
+    }
+
+    function ensureCharts() {
+      appState.charts.score = document.getElementById("score-chart").getContext("2d");
+      appState.charts.pid = document.getElementById("pid-chart").getContext("2d");
+      appState.charts.kpKi = document.getElementById("kp-ki-chart").getContext("2d");
+      appState.charts.kpKd = document.getElementById("kp-kd-chart").getContext("2d");
+    }
+
+    function clearCanvas(context) {
+      const { canvas } = context;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function drawFrame(context) {
+      const { width, height } = context.canvas;
+      context.save();
+      context.strokeStyle = "rgba(255,255,255,0.09)";
+      context.lineWidth = 1;
+      context.strokeRect(0.5, 0.5, width - 1, height - 1);
+      context.restore();
+    }
+
+    function drawGrid(context, xSteps = 5, ySteps = 5) {
+      const { width, height } = context.canvas;
+      context.save();
+      context.strokeStyle = "rgba(255,255,255,0.05)";
+      context.lineWidth = 1;
+      for (let index = 1; index < xSteps; index += 1) {
+        const x = (width / xSteps) * index;
+        context.beginPath();
+        context.moveTo(x, 0);
+        context.lineTo(x, height);
+        context.stroke();
+      }
+      for (let index = 1; index < ySteps; index += 1) {
+        const y = (height / ySteps) * index;
+        context.beginPath();
+        context.moveTo(0, y);
+        context.lineTo(width, y);
+        context.stroke();
+      }
+      context.restore();
+    }
+
+    function drawScoreChart(records) {
+      const context = appState.charts.score;
+      clearCanvas(context);
+      drawGrid(context, 6, 5);
+      drawFrame(context);
+      if (records.length === 0) {
+        drawCanvasLabel(context, "No score data yet");
+        return;
+      }
+      const values = records.map((record) => Number(record.score ?? 0));
+      drawLineSeries(context, values, "#7ae8d6", "score");
+    }
+
+    function drawPidChart(records) {
+      const context = appState.charts.pid;
+      clearCanvas(context);
+      drawGrid(context, 6, 5);
+      drawFrame(context);
+      if (records.length === 0) {
+        drawCanvasLabel(context, "No PID trajectory yet");
+        return;
+      }
+      drawMultiSeries(context, records, [
+        { key: "kp", color: "#7ae8d6", label: "Kp" },
+        { key: "ki", color: "#f5c36d", label: "Ki" },
+        { key: "kd", color: "#ff7b72", label: "Kd" },
+      ]);
+    }
+
+    function drawScatterChart(canvasKey, records, xKey, yKey) {
+      const context = appState.charts[canvasKey];
+      clearCanvas(context);
+      drawGrid(context, 5, 5);
+      drawFrame(context);
+      if (records.length === 0) {
+        drawCanvasLabel(context, `No ${xKey}/${yKey} points yet`);
+        return;
+      }
+
+      const xValues = records.map((record) => Number(record.pid[xKey]));
+      const yValues = records.map((record) => Number(record.pid[yKey]));
+      const scores = records.map((record) => Number(record.score ?? 0));
+      const xMin = Math.min(...xValues);
+      const xMax = Math.max(...xValues);
+      const yMin = Math.min(...yValues);
+      const yMax = Math.max(...yValues);
+      const scoreMin = Math.min(...scores);
+      const scoreMax = Math.max(...scores);
+      const width = context.canvas.width;
+      const height = context.canvas.height;
+
+      records.forEach((record) => {
+        const x = mapRange(Number(record.pid[xKey]), xMin, xMax, 32, width - 20);
+        const y = mapRange(Number(record.pid[yKey]), yMin, yMax, height - 24, 22);
+        const hue = mapRange(Number(record.score ?? 0), scoreMin, scoreMax, 122, 2);
+        context.beginPath();
+        context.fillStyle = `hsla(${hue}, 80%, 62%, 0.9)`;
+        context.arc(x, y, 5.5, 0, Math.PI * 2);
+        context.fill();
+      });
+
+      const best = records.reduce((winner, record) => {
+        if (!winner) {
+          return record;
+        }
+        return Number(record.score ?? Infinity) < Number(winner.score ?? Infinity) ? record : winner;
+      }, null);
+      if (best) {
+        const bx = mapRange(Number(best.pid[xKey]), xMin, xMax, 32, width - 20);
+        const by = mapRange(Number(best.pid[yKey]), yMin, yMax, height - 24, 22);
+        context.save();
+        context.strokeStyle = "#ffffff";
+        context.lineWidth = 1.2;
+        context.beginPath();
+        context.arc(bx, by, 10.5, 0, Math.PI * 2);
+        context.stroke();
+        context.restore();
+      }
+
+      context.save();
+      context.fillStyle = "rgba(229, 239, 233, 0.76)";
+      context.font = '13px "IBM Plex Mono"';
+      context.fillText(`${xKey.toUpperCase()} min ${formatNumber(xMin, 3)}`, 16, height - 8);
+      context.fillText(`${yKey.toUpperCase()} max ${formatNumber(yMax, 3)}`, 16, 16);
+      context.restore();
+    }
+
+    function drawLineSeries(context, values, color, label) {
+      const width = context.canvas.width;
+      const height = context.canvas.height;
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      context.save();
+      context.strokeStyle = color;
+      context.lineWidth = 2.4;
+      context.beginPath();
+      values.forEach((value, index) => {
+        const x = mapRange(index, 0, Math.max(values.length - 1, 1), 22, width - 18);
+        const y = mapRange(value, min, max, height - 24, 20);
+        if (index === 0) {
+          context.moveTo(x, y);
+        } else {
+          context.lineTo(x, y);
+        }
+      });
+      context.stroke();
+      context.fillStyle = color;
+      values.forEach((value, index) => {
+        const x = mapRange(index, 0, Math.max(values.length - 1, 1), 22, width - 18);
+        const y = mapRange(value, min, max, height - 24, 20);
+        context.beginPath();
+        context.arc(x, y, 3.8, 0, Math.PI * 2);
+        context.fill();
+      });
+      context.fillStyle = "rgba(229, 239, 233, 0.76)";
+      context.font = '13px "IBM Plex Mono"';
+      context.fillText(`${label.toUpperCase()} min ${formatNumber(min, 2)}`, 16, 16);
+      context.fillText(`max ${formatNumber(max, 2)}`, width - 116, 16);
+      context.restore();
+    }
+
+    function drawMultiSeries(context, records, specs) {
+      const width = context.canvas.width;
+      const height = context.canvas.height;
+      const values = [];
+      specs.forEach((spec) => {
+        records.forEach((record) => values.push(Number(record.pid[spec.key])));
+      });
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      specs.forEach((spec) => {
+        context.save();
+        context.strokeStyle = spec.color;
+        context.lineWidth = 2.1;
+        context.beginPath();
+        records.forEach((record, index) => {
+          const x = mapRange(index, 0, Math.max(records.length - 1, 1), 22, width - 18);
+          const y = mapRange(Number(record.pid[spec.key]), min, max, height - 24, 20);
+          if (index === 0) {
+            context.moveTo(x, y);
+          } else {
+            context.lineTo(x, y);
+          }
+        });
+        context.stroke();
+        context.restore();
+      });
+      specs.forEach((spec, index) => {
+        context.save();
+        context.fillStyle = spec.color;
+        context.font = '13px "IBM Plex Mono"';
+        context.fillText(spec.label, 16 + index * 70, 16);
+        context.restore();
+      });
+    }
+
+    function drawCanvasLabel(context, text) {
+      const width = context.canvas.width;
+      const height = context.canvas.height;
+      context.save();
+      context.fillStyle = "rgba(142, 167, 163, 0.86)";
+      context.font = '14px "IBM Plex Mono"';
+      context.textAlign = "center";
+      context.fillText(text, width / 2, height / 2);
+      context.restore();
+    }
+
+    function mapRange(value, min, max, outMin, outMax) {
+      if (max - min < 1e-9) {
+        return (outMin + outMax) / 2;
+      }
+      const ratio = (value - min) / (max - min);
+      return outMin + ratio * (outMax - outMin);
+    }
+
+    function summarizeEvent(payload) {
+      if (!payload) {
+        return "No payload";
+      }
+      if (payload.stage) {
+        return `stage ${payload.stage}${payload.iteration ? ` · iter ${payload.iteration}` : ""}`;
+      }
+      if (payload.record) {
+        const record = payload.record;
+        return `record #${record.iteration_index} · score ${record.score === null ? "--" : formatNumber(record.score, 2)} · ${record.reason}`;
+      }
+      if (payload.suggestion) {
+        return `suggestion · ${payload.suggestion.model_used} · ${payload.suggestion.reason}`;
+      }
+      if (payload.session) {
+        return `session ${payload.session.name} · ${payload.session.status}`;
+      }
+      if (payload.record_id) {
+        return `record ${payload.record_id} deleted`;
+      }
+      return JSON.stringify(payload);
+    }
+
+    function shorten(text, maxLength) {
+      if (!text) {
+        return "";
+      }
+      return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+    }
+
+    function escapeHtml(text) {
+      return String(text ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    bootstrap().catch((error) => {
+      console.error(error);
+      dom.connectionStatus.textContent = `Bootstrap failed: ${error.message}`;
+    });
+  </script>
+</body>
+</html>
