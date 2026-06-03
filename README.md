@@ -166,6 +166,37 @@ python main.py online --port COM3 --loop speed --interval 10
 1. `COM3` 只是默认示例
 2. 运行前改成你电脑上的实际串口
 
+## 实验控制台
+
+如果你想把调参过程做成“可观察的实验台”，可以直接启动本地实验控制台：
+
+```bash
+python main.py lab
+```
+
+或者：
+
+```bash
+python scripts/start_lab.py
+run_lab.bat
+```
+
+当前控制台能力：
+
+1. 本地 Web GUI
+2. 会话命名、编辑、删除
+3. 每轮记录自动保存到本地 SQLite
+4. 支持 `llm / bo / hybrid` 三种策略
+5. 支持仿真自动多轮实验
+6. 支持离线 CSV 基线导入和手动补录
+7. 实时表格、事件流、趋势图和参数空间散点图
+
+当前边界：
+
+1. 第一阶段只覆盖 `simulate` 和 `offline`
+2. 在线 MCU GUI 接入还没实现
+3. 第二阶段接入方案见 `docs/private/experimental_lab_phase2_online_plan.md`
+
 ## 常用脚本
 
 ### 监看串口
@@ -199,6 +230,13 @@ python scripts/visualize.py --file data/raw/example_speed_data.csv
 ### 画调参历史
 
 先在 `data/logs/` 里选一份历史文件，再把它传给 `--history`。
+
+### 启动实验控制台
+
+```bash
+python main.py lab
+python scripts/start_lab.py --no-browser
+```
 
 ### 导出 C 参数
 

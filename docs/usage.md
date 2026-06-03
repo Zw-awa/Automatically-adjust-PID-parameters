@@ -197,6 +197,37 @@ python scripts/convert_to_code.py --loop speed
 python scripts/convert_to_code.py --all --format struct
 ```
 
+## 6.1 实验控制台怎么用
+
+如果你不想只看命令行输出，而是想把整个调参过程变成一个可视化实验台，可以直接启动：
+
+```bash
+python main.py lab
+```
+
+也可以：
+
+```bash
+python scripts/start_lab.py
+run_lab.bat
+```
+
+第一阶段实验控制台支持：
+
+1. 会话创建、命名、编辑、删除
+2. `simulate` 会话自动多轮实验
+3. `offline` 会话导入 CSV 做基线和候选建议
+4. `llm / bo / hybrid` 三种策略切换
+5. 手动新增记录、删除记录、清空记录
+6. 本地 SQLite 持久化
+7. 实时事件流、记录表、趋势图、参数空间图
+
+要点：
+
+1. `simulate` 最适合先体验 BO 和 hybrid 的过程反馈
+2. `offline` 更适合把已有数据做成可比较的实验记录
+3. 这一阶段还不接真实 MCU 在线 GUI
+
 ## 7. 输出结果怎么理解
 
 常见指标：
