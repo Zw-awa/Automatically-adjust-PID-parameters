@@ -293,7 +293,16 @@ def validate_change(
     # Apply safety limits
     clamped = loop_config.limits.clamp(constrained)
 
-    return clamped
+    threshold = tuning_config.min_change_threshold
+
+    def _snap(current_val: float, candidate: float) -> float:
+        return current_val if abs(candidate - current_val) < threshold else candidate
+
+    return PIDParams(
+        kp=_snap(current.kp, clamped.kp),
+        ki=_snap(current.ki, clamped.ki),
+        kd=_snap(current.kd, clamped.kd),
+    )
 
 
 def tune(

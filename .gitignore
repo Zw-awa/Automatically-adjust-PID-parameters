@@ -215,3 +215,20 @@ data/lab/*.sqlite3
 data/lab/*.sqlite3-*
 data/raw/lab/*.csv
 data/raw/lab/**/*.csv
+
+# Keil MDK generated files
+**/Objects/
+**/Listings/
+**/DebugConfig/
+*.uvoptx
+*.uvguix.*
+*.axf
+*.hex
+*.lst
+*.map
+*.crf
+*.d
+*.o
+*.lnp
+*.dep
+*.build_log.htm

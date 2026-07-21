@@ -1,16 +1,30 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from core.analyzer import analyze, parse_csv_data
+from core.analyzer import DataQualityError, DataSample, analyze, parse_csv_data
 from core.config import load_config, save_config
 from core.workflows import run_offline
 
 
 class SystemTests(unittest.TestCase):
+    def test_analyze_rejects_insufficient_samples(self) -> None:
+        samples = [DataSample(0.0, 1.0, 0.0, 1.0, 0.0)]
+        with self.assertRaisesRegex(DataQualityError, "insufficient samples"):
+            analyze(samples)
+
+    def test_analyze_rejects_invalid_trace_values(self) -> None:
+        samples = [
+            DataSample(index * 0.1, 1.0, 0.5, 0.5, 0.2)
+            for index in range(10)
+        ]
+        samples[5] = DataSample(0.5, 1.0, 0.5, float("nan"), 0.2)
+        with self.assertRaisesRegex(DataQualityError, "NaN"):
+            analyze(samples)
     def test_parse_example_csv_and_analyze(self) -> None:
         samples = parse_csv_data("data/raw/example_speed_data.csv")
         metrics = analyze(samples)
@@ -81,6 +95,8 @@ class SystemTests(unittest.TestCase):
                 )
 
             self.assertTrue(config_path.exists())
+            saved_history = json.loads(history_path.read_text(encoding="utf-8"))
+            self.assertEqual(saved_history["record_count"], 1)
 
 
 if __name__ == "__main__":

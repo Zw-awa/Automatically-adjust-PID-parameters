@@ -8,6 +8,7 @@ All computations are pure math (numpy) - no LLM involved.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -15,6 +16,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
+
+
+class DataQualityError(ValueError):
+    """Raised when a trace is unsafe or meaningless to analyze."""
 
 
 @dataclass(frozen=True)
@@ -62,6 +67,7 @@ class PerformanceMetrics:
             and self.settling_time_s <= max_settling_time_s
             and self.steady_state_error_pct <= max_sse_pct
             and not self.is_diverging
+            and not self.is_saturated
         )
 
 
@@ -134,6 +140,7 @@ def analyze(
     samples: Sequence[DataSample],
     settling_band_pct: float = 2.0,
     output_limits: tuple[float, float] | None = None,
+    min_samples: int = 10,
 ) -> PerformanceMetrics:
     """Analyze PID response data and compute performance metrics.
 
@@ -145,21 +152,11 @@ def analyze(
     Returns:
         PerformanceMetrics with computed values.
     """
-    if len(samples) < 3:
-        logger.warning("Too few samples (%d) for meaningful analysis", len(samples))
-        return PerformanceMetrics(
-            overshoot_pct=0.0,
-            settling_time_s=0.0,
-            steady_state_error_pct=0.0,
-            rise_time_s=0.0,
-            oscillation_count=0,
-            peak_error=0.0,
-            mean_abs_error=0.0,
-            rms_error=0.0,
-            is_diverging=False,
-            is_saturated=False,
-            data_points=len(samples),
-        )
+    validate_trace(
+        samples,
+        min_samples=min_samples,
+        output_limits=output_limits,
+    )
 
     timestamps = np.array([s.timestamp for s in samples])
     targets = np.array([s.target for s in samples])
@@ -176,7 +173,7 @@ def analyze(
         target_ref = float(np.mean(targets)) or 1.0  # Fallback for zero target
 
     # --- Overshoot ---
-    overshoot_pct = _compute_overshoot(actuals, targets, target_ref)
+    overshoot_pct = float(_compute_overshoot(actuals, targets, target_ref))
 
     # --- Settling time ---
     settling_time_s = _compute_settling_time(t, actuals, targets, settling_band_pct)
@@ -191,7 +188,7 @@ def analyze(
     rise_time_s = _compute_rise_time(t, actuals, targets)
 
     # --- Oscillation count ---
-    oscillation_count = _count_oscillations(errors)
+    oscillation_count = int(_count_oscillations(errors))
 
     # --- Error statistics ---
     abs_errors = np.abs(errors)
@@ -227,6 +224,50 @@ def analyze(
         is_saturated=is_saturated,
         data_points=len(samples),
     )
+
+
+def validate_trace(
+    samples: Sequence[DataSample],
+    *,
+    min_samples: int = 10,
+    max_gap_ratio: float = 5.0,
+    error_tolerance: float = 1e-4,
+    output_limits: tuple[float, float] | None = None,
+) -> None:
+    """Reject traces that could produce misleading tuning metrics."""
+    if len(samples) < min_samples:
+        raise DataQualityError(
+            f"insufficient samples: got {len(samples)}, need at least {min_samples}"
+        )
+
+    rows = [
+        (sample.timestamp, sample.target, sample.actual, sample.error, sample.output)
+        for sample in samples
+    ]
+    if any(not all(math.isfinite(value) for value in row) for row in rows):
+        raise DataQualityError("trace contains NaN or infinite values")
+
+    timestamps = np.asarray([sample.timestamp for sample in samples], dtype=float)
+    intervals = np.diff(timestamps)
+    if np.any(intervals <= 0.0):
+        raise DataQualityError("timestamps must be strictly increasing")
+
+    median_interval = float(np.median(intervals))
+    if median_interval <= 0.0 or float(np.max(intervals)) > median_interval * max_gap_ratio:
+        raise DataQualityError("trace contains a sampling gap larger than the allowed ratio")
+
+    for index, sample in enumerate(samples):
+        expected = sample.target - sample.actual
+        tolerance = max(error_tolerance, abs(expected) * error_tolerance)
+        if abs(sample.error - expected) > tolerance:
+            raise DataQualityError(
+                f"sample {index} error field does not equal target - actual"
+            )
+
+    if output_limits is not None:
+        out_min, out_max = output_limits
+        if not math.isfinite(out_min) or not math.isfinite(out_max) or out_min >= out_max:
+            raise DataQualityError("output limits must be finite and ordered")
 
 
 def _compute_overshoot(

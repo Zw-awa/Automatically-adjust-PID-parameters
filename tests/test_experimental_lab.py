@@ -208,14 +208,18 @@ class ExperimentalLabTests(unittest.TestCase):
                     settings=settings,
                 )
                 manager = LabRunnerManager(storage, config, publish=lambda sid, event, payload: published.append((sid, event, payload)))
-                manager.start(session.id)
+                with mock.patch(
+                    "experimental_lab.runner.LAB_RAW_DATA_DIR",
+                    Path(tmp) / "raw",
+                ):
+                    manager.start(session.id)
 
-                for _ in range(100):
-                    snapshot = storage.get_session(session.id)
-                    if snapshot.status in ("completed", "failed"):
-                        break
-                    import time
-                    time.sleep(0.05)
+                    for _ in range(100):
+                        snapshot = storage.get_session(session.id)
+                        if snapshot.status in ("completed", "failed"):
+                            break
+                        import time
+                        time.sleep(0.05)
 
                 records = storage.list_records(session.id)
                 self.assertGreaterEqual(len(records), 1)

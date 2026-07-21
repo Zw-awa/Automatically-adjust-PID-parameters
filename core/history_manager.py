@@ -33,6 +33,7 @@ class TuningRecord:
     confidence: float                  # LLM's confidence (0-1)
     expected_improvement: str          # What LLM expects to improve
     model_used: str                    # Which model was used
+    applied: bool = True               # False when skipped/rejected/not acknowledged
 
 
 @dataclass
@@ -60,8 +61,9 @@ class TuningHistory:
         return len(self.records)
 
     def get_recent(self, n: int = 5) -> list[TuningRecord]:
-        """Get the most recent N records."""
-        return self.records[-n:] if self.records else []
+        """Get recent applied records used as tuning evidence."""
+        applied = [record for record in self.records if record.applied]
+        return applied[-n:] if applied else []
 
     def detect_oscillation(self, param: str = "kp", window: int = 4) -> bool:
         """Detect if a parameter is oscillating (alternating up/down).
@@ -143,14 +145,15 @@ class TuningHistory:
 
     def _analyze_trends(self) -> list[str]:
         """Analyze parameter adjustment trends over history."""
-        if len(self.records) < 2:
+        applied_records = [record for record in self.records if record.applied]
+        if len(applied_records) < 2:
             return []
 
         trends: list[str] = []
         for param in ("kp", "ki", "kd"):
             consecutive_up = 0
             consecutive_down = 0
-            for rec in self.records[-5:]:
+            for rec in applied_records[-5:]:
                 diff = rec.pid_after[param] - rec.pid_before[param]
                 if diff > 1e-10:
                     consecutive_up += 1
@@ -254,6 +257,7 @@ def create_record(
     confidence: float,
     expected_improvement: str,
     model_used: str,
+    applied: bool = True,
 ) -> TuningRecord:
     """Factory function to create a TuningRecord with current timestamp."""
     return TuningRecord(
@@ -270,4 +274,5 @@ def create_record(
         confidence=confidence,
         expected_improvement=expected_improvement,
         model_used=model_used,
+        applied=applied,
     )

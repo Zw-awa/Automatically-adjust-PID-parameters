@@ -18,6 +18,7 @@
       "name": "速度环",
       "pid": {"kp": 1.0, "ki": 0.1, "kd": 0.05},
       "limits": {"kp": [0.01, 50.0], "ki": [0.0, 20.0], "kd": [0.0, 10.0]},
+      "output_limits": [-100.0, 100.0],
       "target_metrics": {
         "max_overshoot_pct": 5.0,
         "max_settling_time_s": 0.5,

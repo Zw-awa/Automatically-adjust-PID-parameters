@@ -7,7 +7,12 @@ import signal
 import sys
 import time
 
-from core.analyzer import analyze, format_data_for_prompt, parse_csv_data
+from core.analyzer import (
+    DataQualityError,
+    analyze,
+    format_data_for_prompt,
+    parse_csv_data,
+)
 from core.config import AppConfig, PIDParams, save_config
 from core.data_collector import DataCollector
 from core.history_manager import (
@@ -17,7 +22,7 @@ from core.history_manager import (
     load_history,
     save_history,
 )
-from core.serial_manager import SerialManager
+from core.serial_manager import SerialManager, format_pid_command, new_request_id
 from core.simulator import simulate_pid_response
 from core.tuner import TuneResult, tune
 
@@ -63,6 +68,7 @@ def run_offline(
         samples,
         step_label="[2/5] Analyzing performance...",
         max_rows=config.tuning.data_sample_count,
+        output_limits=loop_config.output_limits,
     )
     print(f"\n  Current PID: Kp={current_pid.kp}, Ki={current_pid.ki}, Kd={current_pid.kd}")
 
@@ -105,7 +111,7 @@ def run_offline(
         include_oscillations=True,
     )
     history.add_record(record)
-    history_path = save_history(history)
+    history_path = save_history(history, history_file)
     print(f"\n  History saved to: {history_path}")
 
     if not result.converged:
@@ -113,7 +119,7 @@ def run_offline(
         save_config(config, config_path)
         print("  Config updated with new parameters\n")
 
-    cmd = result.new_params.format_command(loop_name)
+    cmd = format_pid_command(loop_name, result.new_params)
     print(f"\n  Serial command (copy to send manually):")
     print(f"  >>> {cmd}")
     print()
@@ -204,7 +210,16 @@ def run_online(
             print(f"  Tuning iteration #{iteration}")
             print(f"{'─'*40}")
 
-            metrics, data_text = analyze_samples(samples)
+            try:
+                metrics, data_text = analyze_samples(
+                    samples,
+                    output_limits=config.get_loop(loop_name).output_limits,
+                )
+            except DataQualityError as exc:
+                print(f"\n  Data window rejected: {exc}")
+                print("  Parameters remain unchanged; waiting for a clean window.")
+                collector.clear_before(snapshot_marker)
+                continue
 
             result = run_tune_step(
                 config=config,
@@ -219,14 +234,9 @@ def run_online(
 
             display_tune_result(current_pid, result)
 
-            record = build_tuning_record(
-                loop_name=loop_name,
-                iteration=history.iteration_count + 1,
-                pid_before=current_pid,
-                result=result,
-                metrics=metrics,
-            )
-            history.add_record(record)
+            pid_before = current_pid
+            applied = result.converged
+            stop_after_record = False
 
             if result.converged:
                 convergence_count += 1
@@ -235,7 +245,7 @@ def run_online(
                         f"\n  Converged for {convergence_count} consecutive iterations."
                         " Stopping."
                     )
-                    break
+                    stop_after_record = True
             else:
                 convergence_count = 0
 
@@ -250,24 +260,46 @@ def run_online(
 
                 if should_apply:
                     print("  Sending parameters via serial...")
-                    ack_queue = serial_mgr.prepare_ack_queue(loop_name)
-                    serial_mgr.send_pid(loop_name, result.new_params)
-
-                    ack = serial_mgr.wait_for_ack(
+                    request_id = new_request_id()
+                    ack_queue = serial_mgr.prepare_ack_queue(request_id)
+                    serial_mgr.send_pid(
                         loop_name,
-                        timeout=5.0,
-                        ack_queue=ack_queue,
+                        result.new_params,
+                        request_id=request_id,
                     )
+
+                    try:
+                        ack = serial_mgr.wait_for_ack(
+                            request_id,
+                            loop_name,
+                            result.new_params,
+                            timeout=5.0,
+                            ack_queue=ack_queue,
+                        )
+                    except RuntimeError as exc:
+                        print(f"  ERROR: {exc}")
+                        ack = None
                     if ack:
                         print(f"  ACK received: Kp={ack.kp}, Ki={ack.ki}, Kd={ack.kd}")
                         current_pid = ack
+                        config.update_loop_pid(loop_name, current_pid)
+                        applied = True
                     else:
-                        print("  WARNING: No ACK received, assuming params applied")
-                        current_pid = result.new_params
-
-                    config.update_loop_pid(loop_name, current_pid)
+                        print("  ERROR: No matching ACK received; parameters remain unchanged")
                 else:
                     print("  Parameters NOT applied (skipped)")
+
+            record = build_tuning_record(
+                loop_name=loop_name,
+                iteration=history.iteration_count + 1,
+                pid_before=pid_before,
+                result=result,
+                metrics=metrics,
+                applied=applied,
+            )
+            history.add_record(record)
+            if stop_after_record:
+                break
 
             collector.clear_before(snapshot_marker)
 
@@ -317,7 +349,10 @@ def run_simulate(
             noise_std=0.5,
         )
 
-        metrics, data_text = analyze_samples(samples)
+        metrics, data_text = analyze_samples(
+            samples,
+            output_limits=config.get_loop(loop_name).output_limits,
+        )
 
         result = run_tune_step(
             config=config,
@@ -385,11 +420,12 @@ def analyze_samples(
     samples,
     step_label: str | None = None,
     max_rows: int = 30,
+    output_limits: tuple[float, float] | None = None,
 ):
     """Analyze samples and prepare prompt data text."""
     if step_label:
         print(step_label)
-    metrics = analyze(samples)
+    metrics = analyze(samples, output_limits=output_limits)
     print(metrics.to_prompt_string())
     data_text = format_data_for_prompt(samples, max_rows=max_rows)
     return metrics, data_text
@@ -432,6 +468,7 @@ def build_tuning_record(
     result: TuneResult,
     metrics,
     include_oscillations: bool = False,
+    applied: bool = True,
 ):
     """Build a history record for a tuning iteration."""
     metric_data = {
@@ -452,6 +489,7 @@ def build_tuning_record(
         confidence=result.confidence,
         expected_improvement=result.expected_improvement,
         model_used=result.model_used,
+        applied=applied,
     )
 
 

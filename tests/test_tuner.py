@@ -40,6 +40,16 @@ class TunerTests(unittest.TestCase):
         self.assertAlmostEqual(validated.ki, 0.12)
         self.assertAlmostEqual(validated.kd, 0.06)
 
+    def test_validate_change_snaps_small_changes(self) -> None:
+        config = load_config("config.example.json")
+        loop_config = config.get_loop("speed")
+        current = PIDParams(kp=1.0, ki=0.1, kd=0.05)
+        proposed = PIDParams(kp=1.005, ki=0.105, kd=0.055)
+
+        validated = validate_change(current, proposed, config.tuning, loop_config)
+
+        self.assertEqual(validated, current)
+
     def test_build_system_prompt_uses_change_limit(self) -> None:
         config = load_config("config.example.json")
         prompt = build_system_prompt(config.tuning)

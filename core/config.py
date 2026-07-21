@@ -58,10 +58,6 @@ class PIDParams:
     def to_dict(self) -> dict[str, float]:
         return {"kp": self.kp, "ki": self.ki, "kd": self.kd}
 
-    def format_command(self, loop_name: str) -> str:
-        """Format as serial command: PID:loop:Kp,Ki,Kd"""
-        return f"PID:{loop_name}:{self.kp:.6f},{self.ki:.6f},{self.kd:.6f}"
-
 
 @dataclass(frozen=True)
 class ParamLimits:
@@ -101,6 +97,7 @@ class LoopConfig:
     limits: ParamLimits
     target_metrics: TargetMetrics
     description: str = ""
+    output_limits: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -152,6 +149,7 @@ class AppConfig:
             limits=loop.limits,
             target_metrics=loop.target_metrics,
             description=loop.description,
+            output_limits=loop.output_limits,
         )
 
 
@@ -160,6 +158,13 @@ def _parse_loop_config(name: str, raw: dict[str, Any]) -> LoopConfig:
     pid_raw = raw.get("pid", {})
     limits_raw = raw.get("limits", {})
     metrics_raw = raw.get("target_metrics", {})
+
+    output_limits_raw = raw.get("output_limits")
+    output_limits = None
+    if output_limits_raw is not None:
+        if not isinstance(output_limits_raw, list) or len(output_limits_raw) != 2:
+            raise ValueError(f"Loop '{name}' output_limits must be [min, max]")
+        output_limits = (float(output_limits_raw[0]), float(output_limits_raw[1]))
 
     return LoopConfig(
         name=raw.get("name", name),
@@ -182,6 +187,7 @@ def _parse_loop_config(name: str, raw: dict[str, Any]) -> LoopConfig:
             max_sse_pct=metrics_raw.get("max_sse_pct", 1.0),
         ),
         description=raw.get("description", ""),
+        output_limits=output_limits,
     )
 
 
@@ -309,6 +315,8 @@ def save_config(config: AppConfig, path: Path | str | None = None) -> None:
             },
             "description": loop_cfg.description,
         }
+        if loop_cfg.output_limits is not None:
+            raw["loops"][loop_name]["output_limits"] = list(loop_cfg.output_limits)
 
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(raw, f, indent=2, ensure_ascii=False)

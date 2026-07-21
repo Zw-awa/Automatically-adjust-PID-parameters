@@ -1,0 +1,117 @@
+version = 1
+
+[[annotations]]
+path = [
+  ".github/workflows/*.yml",
+  ".gitignore",
+  "LICENSE",
+  "README.md",
+  "config.example.json",
+  "core/**/*.py",
+  "data/lab/.gitkeep",
+  "data/processed/.gitkeep",
+  "data/raw/example_speed_data.csv",
+  "data/raw/lab/.gitkeep",
+  "docs/**/*.md",
+  "experimental_lab/**/*.py",
+  "lab_shell/**/*.json",
+  "main.py",
+  "outputs/figures/.gitkeep",
+  "outputs/reports/.gitkeep",
+  "requirements.txt",
+  "run_lab.bat",
+  "run_offline.bat",
+  "run_online.bat",
+  "scripts/**/*.py",
+  "site/.nojekyll",
+  "site/**/*.html",
+  "tests/**/*.py",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Zw-awa"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = [
+  "examples/README.md",
+  "examples/stm32f103_stdperiph_pid_tuner/README.md",
+  "examples/stm32f103_stdperiph_pid_tuner/THIRD_PARTY_NOTICE.md",
+  "examples/stm32f103_stdperiph_pid_tuner/PidTuner/**",
+  "examples/stm32f103_stdperiph_pid_tuner/PID_Tuner_Std.uvprojx",
+  "examples/stm32f103_stdperiph_pid_tuner/User/main.c",
+  "examples/stm32f103_stdperiph_pid_tuner/User/PidTunerUser.c",
+  "examples/stm32f103_stdperiph_pid_tuner/User/PidTunerUser.h",
+  "examples/stm32g431_hal_pid_tuner/README.md",
+  "examples/stm32g431_hal_pid_tuner/THIRD_PARTY_NOTICE.md",
+  "examples/stm32g431_hal_pid_tuner/Core/Src/main.c",
+  "examples/stm32g431_hal_pid_tuner/User/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Zw-awa"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = [
+  "examples/stm32f103_stdperiph_pid_tuner/Library/**",
+  "examples/stm32f103_stdperiph_pid_tuner/Start/startup_*.s",
+  "examples/stm32f103_stdperiph_pid_tuner/Start/stm32f10x.h",
+  "examples/stm32f103_stdperiph_pid_tuner/Start/system_stm32f10x.*",
+  "examples/stm32f103_stdperiph_pid_tuner/User/stm32f10x_conf.h",
+  "examples/stm32f103_stdperiph_pid_tuner/User/stm32f10x_it.c",
+  "examples/stm32f103_stdperiph_pid_tuner/User/stm32f10x_it.h",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2011 STMicroelectronics"
+SPDX-License-Identifier = "LicenseRef-STMicroelectronics-STM32-SPL-3.5.0"
+
+[[annotations]]
+path = [
+  "examples/stm32f103_stdperiph_pid_tuner/Start/core_cm3.c",
+  "examples/stm32f103_stdperiph_pid_tuner/Start/core_cm3.h",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2009 ARM Limited"
+SPDX-License-Identifier = "LicenseRef-ARM-CMSIS-2009"
+
+[[annotations]]
+path = [
+  "examples/stm32g431_hal_pid_tuner/Drivers/STM32G4xx_HAL_Driver/**",
+  "examples/stm32g431_hal_pid_tuner/Drivers/CMSIS/Device/ST/**",
+  "examples/stm32g431_hal_pid_tuner/MDK-ARM/startup_stm32g431xx.s",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2017-2019 STMicroelectronics"
+SPDX-License-Identifier = "BSD-3-Clause"
+
+[[annotations]]
+path = [
+  "examples/stm32g431_hal_pid_tuner/Drivers/CMSIS/Include/**",
+  "examples/stm32g431_hal_pid_tuner/Drivers/CMSIS/LICENSE.txt",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2009-2019 Arm Limited"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+  "examples/stm32g431_hal_pid_tuner/Core/Inc/**",
+  "examples/stm32g431_hal_pid_tuner/Core/Src/adc.c",
+  "examples/stm32g431_hal_pid_tuner/Core/Src/dma.c",
+  "examples/stm32g431_hal_pid_tuner/Core/Src/gpio.c",
+  "examples/stm32g431_hal_pid_tuner/Core/Src/stm32g4xx_hal_msp.c",
+  "examples/stm32g431_hal_pid_tuner/Core/Src/stm32g4xx_it.c",
+  "examples/stm32g431_hal_pid_tuner/Core/Src/system_stm32g4xx.c",
+  "examples/stm32g431_hal_pid_tuner/Core/Src/usart.c",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 STMicroelectronics"
+SPDX-License-Identifier = "LicenseRef-STMicroelectronics-CubeMX-AS-IS"
+
+[[annotations]]
+path = [
+  "examples/stm32g431_hal_pid_tuner/MDK-ARM/PID_Tuner_HAL.uvprojx",
+  "examples/stm32g431_hal_pid_tuner/PID_Tuner_HAL.ioc",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Zw-awa"
+SPDX-License-Identifier = "MIT"

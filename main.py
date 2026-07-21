@@ -36,8 +36,9 @@ Examples:
 
 Serial Protocol (MCU must implement):
   MCU -> PC:  DATA:<loop>:<timestamp>,<target>,<actual>,<error>,<output>
-  PC -> MCU:  PID:<loop>:<Kp>,<Ki>,<Kd>
-  MCU -> PC:  ACK:<loop>:<Kp>,<Ki>,<Kd>
+  PC -> MCU:  PID:<request_id>:<loop>:<Kp>,<Ki>,<Kd>
+  MCU -> PC:  ACK:<request_id>:<loop>:<Kp>,<Ki>,<Kd>
+               NACK:<request_id>:<loop>:<reason>
 """,
     )
 

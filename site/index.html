@@ -207,15 +207,15 @@ pip install -r requirements.txt</pre>
         </section>
         <section class="section" id="mcu">
           <h2>06 / STM32 接入</h2>
-          <p>如果你要接 STM32，先按 <code>docs/mcu_reference.c</code> 把协议打通，再替换成你自己的控制逻辑。</p>
+          <p>如果你要接 STM32，先从 <code>examples/</code> 选择 F103 标准库或 G431 HAL 工程，原样跑通后再按 MCU 集成指南替换用户接口。</p>
           <div class="terminal">
             <div class="cap">protocol</div>
-            <pre>MCU -> PC   DATA:speed:1.2345,100.0,95.3,-4.7,85.2
-PC  -> MCU  PID:speed:0.800000,0.150000,0.030000
-MCU -> PC   ACK:speed:0.800000,0.150000,0.030000
-MCU -> PC   INFO:PID parameters updated successfully</pre>
+            <pre>MCU -> PC   DATA:speed:1.2345,100.0,95.3,4.7,85.2
+PC  -> MCU  PID:req001:speed:0.800000,0.150000,0.030000
+MCU -> PC   ACK:req001:speed:0.800000,0.150000,0.030000
+MCU -> PC   NACK:req001:speed:OUT_OF_RANGE</pre>
           </div>
-          <p>参考文件里已经把 UART 句柄、TX/RX 引脚和环名字写成了宏，直接改顶部宏定义就能换到你的工程。</p>
+          <p>两套示例都把核心、配置、平台端口和用户 I/O 分开，接真实小车时主要修改配置和三个用户接口函数。</p>
         </section>
         <section class="section" id="faq">
           <h2>07 / 常见问题</h2>

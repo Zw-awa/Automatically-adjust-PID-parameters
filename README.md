@@ -4,298 +4,117 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Serial-lightgrey.svg)](LICENSE)
 
-Automatically-adjust-PID-parameters 用来根据控制响应数据给出下一轮 PID 参数建议。
+一个面向仿真、离线数据和 MCU 串口的 PID 分析与调参助手。
 
-它更适合这样使用：
+它负责读取控制响应、计算性能指标、生成下一轮 PID 建议，并在在线模式中通过
+协议 v2 安全地下发参数。真正的实时控制、传感器采集、PWM 和硬件保护仍由 MCU 负责。
 
-1. 先用本地分析确认数据和环境没问题
-2. 再用仿真模式熟悉调参流程
-3. 最后把同一套流程接到真实 MCU 串口上
+## 按目标选择入口
 
-## 这个项目是什么
+| 你的目标 | 从这里开始 | 是否需要 Python |
+| --- | --- | --- |
+| 第一次运行 PC 工具 | [快速入门](docs/快速入门指南.md) | 是 |
+| 查看全部命令和配置 | [使用手册](docs/usage.md) | 是 |
+| 先在 STM32 上跑通 UART/PID demo | [STM32 示例](examples/README.md) | 否 |
+| 把调参模块移植进自己的小车 | [MCU 集成指南](docs/MCU集成指南.md) | 联调前不需要 |
+| 理解内部数据流和安全边界 | [架构说明](docs/architecture.md) | 否 |
+| 使用本地实验控制台 | [使用手册：实验控制台](docs/usage.md#实验控制台) | 是 |
 
-这个项目不是 MCU 控制器本体，而是一个调参助手。
+完整导航见 [文档索引](docs/文档索引.md)。
 
-它会做这些事：
+## 能做什么
 
-1. 读取一段控制响应数据
-2. 计算超调量、调节时间、稳态误差等指标
-3. 把当前 PID、目标要求和历史记录交给模型
-4. 给出下一轮 `Kp / Ki / Kd` 建议
-5. 在在线模式下把新参数发回设备
+- 分析超调量、调节时间、稳态误差、振荡、饱和和数据质量。
+- 从软件仿真、CSV 或 MCU 串口获取控制响应。
+- 结合当前 PID、目标指标和历史记录生成参数建议。
+- 限制参数范围和单次变化幅度。
+- 使用 request ID、ACK/NACK 和实际生效值确认在线更新。
+- 通过本地实验控制台比较 LLM、BO 和 hybrid 策略。
 
-你可以把它理解成：
+它不是自动保证稳定的控制器，也不能替代过流、超速、急停、看门狗和回滚机制。
 
-1. 仿真模式下的调参练习工具
-2. 离线模式下的数据分析工具
-3. 在线模式下的串口调参工具
+## PC 端快速开始
 
-## 项目特色
+需要 Python 3.10 或更高版本。
 
-### 1. 使用路径是逐步展开的
-
-这个项目强调先把每一层单独跑通，再进入下一层：
-
-1. 先本地分析
-2. 再仿真
-3. 再监看串口
-4. 最后在线调参
-
-这样更容易判断问题到底出在：
-
-1. 数据本身
-2. API key
-3. 串口链路
-4. 设备侧实现
-
-### 2. 硬件接入路径直接
-
-项目围绕最常见的串口接入方式组织流程。
-
-你可以直接使用：
-
-1. `monitor_serial.py` 做串口联调
-2. `collect_data.py` 先采一份数据
-3. 离线模式先看指标和建议
-4. `docs/mcu_reference.c` 作为 STM32 HAL 参考
-
-对 STM32 来说，参考代码已经把这些入口提成宏：
-
-1. UART 句柄
-2. TX/RX 引脚
-3. 控制环名字
-
-### 3. 安全策略放在前面
-
-这个项目默认不是“算完就直接改参数”，而是先控制风险。
-
-当前默认策略包括：
-
-1. 参数上下限限制
-2. 单次变化率限制
-3. 历史记录辅助判断
-4. 在线模式默认人工确认
-5. 等待设备 `ACK` 确认
-
-## 运行前需要改什么
-
-第一次使用前，至少确认这几项：
-
-1. 复制 `config.example.json` 为 `config.json`
-2. 配置 `DEEPSEEK_API_KEY`，或者把 key 写进本地 `config.json`
-3. 如果你要接在线模式，把默认 `COM3` 改成你电脑上的实际串口
-4. 如果你要接真实设备，确认 MCU 发出的控制环名字和本地配置一致
-
-## 快速开始
-
-### 1. 克隆仓库
-
-```bash
-git clone https://github.com/Zw-awa/Automatically-adjust-PID-parameters.git
-cd Automatically-adjust-PID-parameters
-```
-
-### 2. 安装依赖
-
-```bash
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-建议使用 Python 3.10 或更高版本。
-
-### 3. 复制本地配置
-
-```bash
-copy config.example.json config.json
-```
-
-### 4. 先跑本地分析
-
-```bash
+```bat
+python -m pip install -r requirements.txt
 python scripts/offline_analyze.py --file data/raw/example_speed_data.csv
 ```
 
-这一步最适合先做，因为它不依赖：
+第二条命令只做本地指标分析，不需要 API key、串口或 MCU，最适合验证安装是否正常。
 
-1. API key
-2. 串口
-3. MCU
+需要 LLM 建议时，再复制本地配置并设置 DeepSeek API key：
 
-### 5. 再跑仿真
-
-```bash
+```bat
+copy config.example.json config.json
 python main.py simulate --loop speed --iterations 1
 ```
 
-如果 API key 还没配好，这一步可能会在最后的 LLM 调用时报错。先看前面的分析输出是否正常。
+推荐通过环境变量 `DEEPSEEK_API_KEY` 提供密钥；`config.json` 已被 Git 忽略，
+也可以只在本机写入密钥。
 
-## 三种模式
+## 四种运行方式
 
-### 仿真模式
+| 模式 | 命令 | 数据来源 | API key |
+| --- | --- | --- | --- |
+| 本地指标分析 | `python scripts/offline_analyze.py --file <csv>` | CSV | 不需要 |
+| 仿真调参 | `python main.py simulate --loop speed --iterations 3` | 软件模型 | 需要 |
+| 离线调参 | `python main.py offline --file <csv> --loop speed` | CSV | 需要 |
+| 在线调参 | `python main.py online --port COM3 --loop speed` | MCU 串口 | 需要 |
 
-```bash
-python main.py simulate --loop speed --iterations 3
+`COM3` 只是示例，必须换成实际串口。在线模式默认 `auto_apply: false`，建议保持人工确认。
+
+## STM32 接入
+
+仓库提供两套经过 Keil 5.38 / ARMCC 5.06 实际构建的工程：
+
+- STM32F103C8 标准库版：`examples/stm32f103_stdperiph_pid_tuner`
+- STM32G431RBT6 HAL 版：`examples/stm32g431_hal_pid_tuner`
+
+它们默认控制板内软件对象，不输出 PWM。第一次只用 Keil 和串口助手即可验证：
+
+```text
+INFO:READY:speed:...
+DATA:speed:...
 ```
 
-适合：
+确认通信后，再按 [MCU 集成指南](docs/MCU集成指南.md) 修改用户接口接入真实传感器和执行器。
 
-1. 第一次上手
-2. 没有硬件时先看流程
-3. 想先确认参数建议长什么样
+## 协议 v2
 
-### 离线模式
-
-```bash
-python main.py offline --file data/raw/example_speed_data.csv --loop speed
+```text
+MCU -> PC  DATA:<loop>:<time>,<target>,<actual>,<error>,<output>
+PC  -> MCU PID:<request_id>:<loop>:<kp>,<ki>,<kd>
+MCU -> PC  ACK:<request_id>:<loop>:<applied_kp>,<applied_ki>,<applied_kd>
+MCU -> PC  NACK:<request_id>:<loop>:<reason>
 ```
 
-适合：
-
-1. 你已经采到一份数据
-2. 想先分析数据再决定是否在线调参
-
-### 在线模式
-
-```bash
-python main.py online --port COM3 --loop speed --interval 10
-```
-
-说明：
-
-1. `COM3` 只是默认示例
-2. 运行前改成你电脑上的实际串口
-
-## 实验控制台
-
-如果你想把调参过程做成“可观察的实验台”，可以直接启动本地实验控制台：
-
-```bash
-python main.py lab
-```
-
-或者：
-
-```bash
-python scripts/start_lab.py
-run_lab.bat
-```
-
-当前控制台能力：
-
-1. 本地 Web GUI
-2. 会话命名、编辑、删除
-3. 每轮记录自动保存到本地 SQLite
-4. 支持 `llm / bo / hybrid` 三种策略
-5. 支持仿真自动多轮实验
-6. 支持离线 CSV 基线导入和手动补录
-7. 实时表格、事件流、趋势图和参数空间散点图
-
-当前边界：
-
-1. 第一阶段只覆盖 `simulate` 和 `offline`
-2. 在线 MCU GUI 接入还没实现
-3. 第二阶段接入方案见 `docs/private/experimental_lab_phase2_online_plan.md`
-
-## 常用脚本
-
-### 监看串口
-
-```bash
-python scripts/monitor_serial.py --port COM3
-```
-
-`COM3` 只是默认示例，运行前改成你的实际串口。
-
-### 采集串口数据
-
-```bash
-python scripts/collect_data.py --port COM3 --loop speed --duration 20
-```
-
-`COM3` 只是默认示例，运行前改成你的实际串口。
-
-### 只做本地分析
-
-```bash
-python scripts/offline_analyze.py --file data/raw/example_speed_data.csv
-```
-
-### 画响应曲线
-
-```bash
-python scripts/visualize.py --file data/raw/example_speed_data.csv
-```
-
-### 画调参历史
-
-先在 `data/logs/` 里选一份历史文件，再把它传给 `--history`。
-
-### 启动实验控制台
-
-```bash
-python main.py lab
-python scripts/start_lab.py --no-browser
-```
-
-### 导出 C 参数
-
-```bash
-python scripts/convert_to_code.py --loop speed
-python scripts/convert_to_code.py --all --format struct
-```
+PC 只有在 request ID、控制环和实际生效参数全部匹配时才接受 ACK。
 
 ## 项目结构
 
 ```text
-Automatically-adjust-PID-parameters/
-├── core/                 核心逻辑
-├── scripts/              辅助脚本
-├── docs/                 使用文档和 STM32 参考代码
-├── data/                 示例数据和运行数据目录
-├── site/                 静态说明页
-├── tests/                本地测试
-├── main.py               主入口
-├── config.example.json   示例配置
-├── requirements.txt      依赖列表
-└── README.md
+core/               分析、配置、串口、调参和工作流
+experimental_lab/   本地实验服务
+lab_shell/          实验控制台前端资源
+scripts/            采集、监视、分析、可视化和导出脚本
+examples/           STM32 标准库/HAL 教学工程
+docs/               使用、移植和架构文档
+data/               示例数据和本地运行数据
+tests/              单元与流程测试
+main.py             PC 端统一入口
 ```
 
-## STM32 接入
+## 安全原则
 
-如果你要接 STM32：
-
-1. 先看 `docs/MCU集成指南.md`
-2. 再看 `docs/mcu_reference.c`
-
-`docs/mcu_reference.c` 已经按 STM32 HAL 风格写成参考实现，UART 句柄、TX/RX 引脚和环名字都可以通过宏统一改。
-
-## 常见问题
-
-### `401 Authorization Required`
-
-通常表示：
-
-1. API key 无效
-2. 没配置 key
-3. 程序没有读到 key
-
-### 串口打不开
-
-通常先检查：
-
-1. 端口号是否正确
-2. 波特率是否一致
-3. 是否被其他程序占用
-
-### 在线模式总是样本不足
-
-通常先检查：
-
-1. MCU 是否持续发送 `DATA:`
-2. `loop` 名称是否一致
-3. 串口监看脚本里有没有正常数据
+- 先跑本地分析，再仿真，再串口监视，最后在线调参。
+- CSV 必须有递增时间戳、有限数值和一致的 `error = target - actual`。
+- `output_limits` 必须与固件真实输出范围和单位一致。
+- 参数只应在控制周期边界生效，超时或不匹配的 ACK 都视为失败。
+- 第一次实机联调时禁用执行器输出和自动应用。
 
 ## 许可证
 
-本项目使用 MIT License。详见 [LICENSE](LICENSE)。
+项目自有代码使用 MIT License。STM32 示例内的 ST/Arm 文件保留各自原始许可，
+具体边界见 `REUSE.toml`、`LICENSES/` 和示例目录中的第三方说明。

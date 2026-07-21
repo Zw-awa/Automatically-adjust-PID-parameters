@@ -37,11 +37,8 @@ def simulate_pid_response(
         output = kp * error + ki * integral + kd * derivative
         output = max(-1000, min(1000, output))
 
-        d_actual = (plant_k * output - actual) / plant_tau * dt
-        actual += d_actual + rng.normal(0, noise_std) * dt
-
-        prev_error = error
-
+        # A sample represents one instant: actual and error must come from the
+        # same plant state. Advance the plant only after recording that sample.
         samples.append(
             DataSample(
                 timestamp=t,
@@ -51,5 +48,9 @@ def simulate_pid_response(
                 output=output,
             )
         )
+
+        d_actual = (plant_k * output - actual) / plant_tau * dt
+        actual += d_actual + rng.normal(0, noise_std) * dt
+        prev_error = error
 
     return samples

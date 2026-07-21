@@ -1,0 +1,11 @@
+STM32CubeMX generated source notice
+
+Copyright (c) 2026 STMicroelectronics. All rights reserved.
+
+The covered generated source files state that they are licensed under terms
+found in the LICENSE file in the root directory of their software component,
+and that if no such LICENSE file is supplied, the software is provided AS-IS.
+
+The copied reference project did not contain that root LICENSE file. This
+LicenseRef preserves the source header's statement and does not relicense the
+generated files under the MIT License.

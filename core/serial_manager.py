@@ -11,12 +11,11 @@ using a defined text protocol.
     Example: DATA:speed:12345,100.0,95.3,-4.7,85.2\n
 
 ### PC -> MCU (parameter update):
-    PID:<loop>:<Kp>,<Ki>,<Kd>\n
-    Example: PID:speed:0.800000,0.150000,0.030000\n
+    PID:<request_id>:<loop>:<Kp>,<Ki>,<Kd>\n
 
-### MCU -> PC (acknowledgment):
-    ACK:<loop>:<Kp>,<Ki>,<Kd>\n
-    Example: ACK:speed:0.800000,0.150000,0.030000\n
+### MCU -> PC (acknowledgment/rejection):
+    ACK:<request_id>:<loop>:<applied_Kp>,<applied_Ki>,<applied_Kd>\n
+    NACK:<request_id>:<loop>:<reason>\n
 
 ### MCU -> PC (status/info):
     INFO:<message>\n
@@ -26,7 +25,10 @@ using a defined text protocol.
 from __future__ import annotations
 
 import logging
+import math
 import queue
+import re
+import secrets
 import threading
 import time
 from dataclasses import dataclass
@@ -39,6 +41,30 @@ from core.config import PIDParams, SerialConfig
 
 logger = logging.getLogger(__name__)
 
+_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.-]{1,32}$")
+
+
+def new_request_id() -> str:
+    return secrets.token_hex(6)
+
+
+def format_pid_command(
+    loop_name: str,
+    params: PIDParams,
+    *,
+    request_id: str | None = None,
+) -> str:
+    """Format a validated protocol-v2 PID command without its line ending."""
+    request_id = request_id or new_request_id()
+    _validate_token("request_id", request_id)
+    _validate_token("loop_name", loop_name)
+    if not all(math.isfinite(value) for value in (params.kp, params.ki, params.kd)):
+        raise ValueError("PID parameters must be finite")
+    return (
+        f"PID:{request_id}:{loop_name}:"
+        f"{params.kp:.6f},{params.ki:.6f},{params.kd:.6f}"
+    )
+
 
 @dataclass(frozen=True)
 class ParsedMessage:
@@ -49,6 +75,8 @@ class ParsedMessage:
     payload: str       # Raw payload string
     data_sample: DataSample | None = None
     ack_params: PIDParams | None = None
+    request_id: str | None = None
+    error_code: str | None = None
 
 
 def parse_line(line: str) -> ParsedMessage:
@@ -64,7 +92,7 @@ def parse_line(line: str) -> ParsedMessage:
     if not line:
         return ParsedMessage(msg_type="UNKNOWN", loop_name="", payload="")
 
-    parts = line.split(":", 2)
+    parts = line.split(":")
 
     if len(parts) < 2:
         return ParsedMessage(msg_type="INFO", loop_name="", payload=line)
@@ -75,6 +103,19 @@ def parse_line(line: str) -> ParsedMessage:
         loop_name = parts[1]
         return _parse_data_message(loop_name, parts[2])
 
+    if msg_type == "ACK" and len(parts) == 4:
+        return _parse_ack_message(parts[2], parts[3], request_id=parts[1])
+
+    if msg_type == "NACK" and len(parts) >= 4:
+        return ParsedMessage(
+            msg_type="NACK",
+            loop_name=parts[2],
+            payload=":".join(parts[3:]),
+            request_id=parts[1],
+            error_code=parts[3],
+        )
+
+    # Receive-only compatibility for old firmware.
     if msg_type == "ACK" and len(parts) == 3:
         loop_name = parts[1]
         return _parse_ack_message(loop_name, parts[2])
@@ -125,7 +166,12 @@ def _parse_data_message(loop_name: str, payload: str) -> ParsedMessage:
         return ParsedMessage(msg_type="DATA", loop_name=loop_name, payload=payload)
 
 
-def _parse_ack_message(loop_name: str, payload: str) -> ParsedMessage:
+def _parse_ack_message(
+    loop_name: str,
+    payload: str,
+    *,
+    request_id: str | None = None,
+) -> ParsedMessage:
     """Parse ACK message payload: Kp,Ki,Kd"""
     values = payload.split(",")
     try:
@@ -135,16 +181,24 @@ def _parse_ack_message(loop_name: str, payload: str) -> ParsedMessage:
                 ki=float(values[1].strip()),
                 kd=float(values[2].strip()),
             )
+            if not all(math.isfinite(value) for value in (params.kp, params.ki, params.kd)):
+                raise ValueError("ACK contains non-finite parameters")
             return ParsedMessage(
                 msg_type="ACK",
                 loop_name=loop_name,
                 payload=payload,
                 ack_params=params,
+                request_id=request_id,
             )
     except ValueError as e:
         logger.warning("Failed to parse ACK payload: %s (%s)", payload, e)
 
-    return ParsedMessage(msg_type="ACK", loop_name=loop_name, payload=payload)
+    return ParsedMessage(
+        msg_type="ACK",
+        loop_name=loop_name,
+        payload=payload,
+        request_id=request_id,
+    )
 
 
 class SerialManager:
@@ -162,7 +216,7 @@ class SerialManager:
         self._reader_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._on_data: Callable[[ParsedMessage], None] | None = None
-        self._ack_queues: dict[str, queue.Queue[PIDParams | None]] = {}
+        self._ack_queues: dict[str, queue.Queue[ParsedMessage]] = {}
 
     @property
     def is_open(self) -> bool:
@@ -194,17 +248,22 @@ class SerialManager:
                 logger.info("Serial port closed")
             self._port = None
 
-    def send_pid(self, loop_name: str, params: PIDParams) -> None:
-        """Send PID parameters to the MCU.
-
-        Format: PID:<loop>:<Kp>,<Ki>,<Kd>\n
-        """
-        command = params.format_command(loop_name) + "\n"
-        self._write(command)
+    def send_pid(
+        self,
+        loop_name: str,
+        params: PIDParams,
+        *,
+        request_id: str | None = None,
+    ) -> str:
+        """Send PID parameters and return the correlation request ID."""
+        request_id = request_id or new_request_id()
+        command = format_pid_command(loop_name, params, request_id=request_id)
+        self._write(command + "\n")
         logger.info(
             "Sent PID to %s: Kp=%.6f Ki=%.6f Kd=%.6f",
             loop_name, params.kp, params.ki, params.kd,
         )
+        return request_id
 
     def _write(self, data: str) -> None:
         """Thread-safe write to serial port."""
@@ -270,15 +329,16 @@ class SerialManager:
             logger.info("Serial reader thread stopped")
         self._reader_thread = None
 
-    def prepare_ack_queue(self, loop_name: str) -> queue.Queue[PIDParams | None]:
+    def prepare_ack_queue(self, request_id: str) -> queue.Queue[ParsedMessage]:
         """Register an ACK queue before sending a command.
 
         Registering first avoids a race where the MCU responds so quickly
         that the reader thread consumes the ACK before `wait_for_ack()`
         has created its queue.
         """
-        q: queue.Queue[PIDParams | None] = queue.Queue()
-        self._ack_queues[loop_name] = q
+        _validate_token("request_id", request_id)
+        q: queue.Queue[ParsedMessage] = queue.Queue()
+        self._ack_queues[request_id] = q
         return q
 
     def _reader_loop(self) -> None:
@@ -289,9 +349,11 @@ class SerialManager:
                 if msg is None:
                     continue
 
-                # Route ACK messages to waiting queues
-                if msg.msg_type == "ACK" and msg.loop_name in self._ack_queues:
-                    self._ack_queues[msg.loop_name].put(msg.ack_params)
+                if (
+                    msg.msg_type in ("ACK", "NACK")
+                    and msg.request_id in self._ack_queues
+                ):
+                    self._ack_queues[msg.request_id].put(msg)
 
                 # Always forward to data callback
                 if self._on_data:
@@ -302,9 +364,11 @@ class SerialManager:
 
     def wait_for_ack(
         self,
+        request_id: str,
         loop_name: str,
+        expected_params: PIDParams,
         timeout: float = 5.0,
-        ack_queue: queue.Queue[PIDParams | None] | None = None,
+        ack_queue: queue.Queue[ParsedMessage] | None = None,
     ) -> PIDParams | None:
         """Wait for an ACK message for a specific loop.
 
@@ -318,14 +382,36 @@ class SerialManager:
         Returns:
             Acknowledged PID params, or None if timeout.
         """
-        q = ack_queue or self.prepare_ack_queue(loop_name)
+        q = ack_queue or self.prepare_ack_queue(request_id)
         try:
-            params = q.get(timeout=timeout)
-            logger.info("ACK received for %s", loop_name)
+            message = q.get(timeout=timeout)
+            if message.msg_type == "NACK":
+                raise RuntimeError(
+                    f"Device rejected PID update for {loop_name}: {message.payload}"
+                )
+            params = message.ack_params
+            if message.loop_name != loop_name or params is None:
+                raise RuntimeError("Received malformed or mismatched PID acknowledgment")
+            tolerance = 1e-5
+            if any(
+                abs(actual - expected) > tolerance
+                for actual, expected in (
+                    (params.kp, expected_params.kp),
+                    (params.ki, expected_params.ki),
+                    (params.kd, expected_params.kd),
+                )
+            ):
+                raise RuntimeError("Acknowledged PID values do not match requested values")
+            logger.info("ACK received for request %s (%s)", request_id, loop_name)
             return params
         except queue.Empty:
             logger.warning("ACK timeout for %s after %.1fs", loop_name, timeout)
             return None
         finally:
-            if self._ack_queues.get(loop_name) is q:
-                self._ack_queues.pop(loop_name, None)
+            if self._ack_queues.get(request_id) is q:
+                self._ack_queues.pop(request_id, None)
+
+
+def _validate_token(name: str, value: str) -> None:
+    if not _TOKEN_RE.fullmatch(value):
+        raise ValueError(f"{name} contains unsupported characters")

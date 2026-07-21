@@ -1,304 +1,202 @@
-# Automatically-adjust-PID-parameters 使用指南
+# 使用手册
 
-这份文档只讲怎么用，以及遇到问题时先查什么。
+本页是 PC 端命令、配置、CSV 和故障排查的参考手册。第一次运行建议先看
+[快速入门指南](快速入门指南.md)。
 
-## 1. 最常见的三种用法
+## 主程序
 
-### 用法 1：先用仿真模式熟悉流程
+统一入口：
 
-```bash
+```bat
+python main.py [--config PATH] [--verbose] <mode> [options]
+```
+
+如果没有显式指定配置，程序优先读取 `config.json`；文件不存在时回退到
+`config.example.json`。
+
+### 仿真模式
+
+```bat
 python main.py simulate --loop speed --iterations 3
 ```
 
-适合：
+使用软件对象生成响应，然后执行分析和 LLM 调参。需要有效 API key，不需要硬件。
 
-1. 还没有硬件
-2. 想先看整体流程
-3. 想先确认 LLM 调参大概会输出什么
+### 离线调参
 
-### 用法 2：用离线模式分析已有数据
-
-```bash
+```bat
 python main.py offline --file data/raw/example_speed_data.csv --loop speed
 ```
 
-适合：
+读取 CSV、分析数据、调用 LLM 并保存建议。可通过 `--history <json>` 继续使用
+已有历史。仅想计算指标、不调用 LLM 时使用：
 
-1. 你已经采到一份数据
-2. 还不想直接在线改参数
-3. 想先确认建议方向是否合理
-
-### 用法 3：在线模式接真实 MCU
-
-```bash
-python main.py online --port COM3 --loop speed --interval 10
-```
-
-说明：
-
-1. `COM3` 只是默认示例
-2. 运行前改成你电脑上的实际串口
-
-## 2. 第一次使用时怎么做最稳
-
-推荐顺序：
-
-1. 安装依赖
-2. 复制本地配置
-3. 跑帮助命令
-4. 跑本地离线分析
-5. 再跑仿真
-6. 最后再接硬件
-
-### 安装依赖
-
-```bash
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### 复制本地配置
-
-```bash
-copy config.example.json config.json
-```
-
-### 看帮助
-
-```bash
-python main.py --help
-```
-
-### 跑本地分析
-
-```bash
+```bat
 python scripts/offline_analyze.py --file data/raw/example_speed_data.csv
 ```
 
-这一步最值得先做，因为它不依赖：
+### 在线调参
 
-1. 网络
-2. API key
-3. 串口
-4. MCU
-
-## 3. 配置文件怎么理解
-
-### `config.example.json`
-
-这是示例模板。
-
-### `config.json`
-
-这是你本地真正运行时使用的配置。第一次使用时从示例文件复制出来即可。
-
-### API key 怎么放
-
-你有两种方式：
-
-1. 推荐：设置环境变量 `DEEPSEEK_API_KEY`
-2. 兼容：写进本地 `config.json`
-
-如果你用本地配置文件，重点看这段：
-
-```json
-"llm": {
-  "api_key": "your-deepseek-api-key"
-}
+```bat
+python main.py online --port COM3 --loop speed --interval 10 --max-iter 5
 ```
 
-### 串口默认值怎么理解
+`COM3` 必须换成实际端口。推荐保持 `online.auto_apply` 为 `false`，由用户确认后
+再发送参数。设备只有返回完全匹配的协议 v2 ACK，本地配置才会接受新参数。
 
-示例配置里的串口默认是 `COM3`。
+## 串口联调脚本
 
-说明：
+### 监视原始消息
 
-1. 这只是默认示例
-2. 真正运行前改成你电脑上的实际串口
-
-## 4. 离线数据格式是什么样
-
-推荐 CSV 格式：
-
-```csv
-timestamp,target,actual,error,output
-0.0000,100.0,0.0,100.0,500.0
-0.0100,100.0,4.85,95.15,480.75
+```bat
+python scripts/monitor_serial.py --port COM3 --baud 115200
 ```
 
-如果你只有前三列：
+确认持续收到 `DATA:<loop>:...`，并观察 ACK、NACK 和 INFO。
 
-```csv
-timestamp,target,actual
-```
+### 采集 CSV
 
-也可以，程序会自动补误差，输出值会记成 `0.0`。
+按时间采集：
 
-## 5. 在线模式前先做什么
-
-### 先监看串口
-
-```bash
-python scripts/monitor_serial.py --port COM3
-```
-
-你先确认：
-
-1. 串口能打开
-2. 设备持续发数据
-3. 数据格式像 `DATA:<loop>:...`
-
-这里的 `COM3` 只是默认示例，运行前改成你的实际串口。
-
-### 再采一份数据
-
-```bash
+```bat
 python scripts/collect_data.py --port COM3 --loop speed --duration 20
 ```
 
-这里的 `COM3` 只是默认示例，运行前改成你的实际串口。
+按样本数量采集：
 
-采完以后先做离线分析。把 `--file` 换成你刚采集出来的 CSV 文件路径。
-
-## 6. 还可以用哪些辅助脚本
-
-### 只做本地分析
-
-```bash
-python scripts/offline_analyze.py --file data/raw/example_speed_data.csv
-```
-
-### 监看串口
-
-```bash
-python scripts/monitor_serial.py --port COM3
-```
-
-### 采集串口数据
-
-```bash
+```bat
 python scripts/collect_data.py --port COM3 --loop speed --count 500
 ```
 
-### 画响应曲线
+建议先采集、离线检查数据，再运行在线调参。
 
-```bash
-python scripts/visualize.py --file data/raw/example_speed_data.csv
-```
+## 其他脚本
 
-### 画调参历史
-
-先在 `data/logs/` 里选一份历史文件，再把它传给 `--history`。
-
-### 导出 C 参数
-
-```bash
+```bat
+python scripts/visualize.py --file <csv>
 python scripts/convert_to_code.py --loop speed
 python scripts/convert_to_code.py --all --format struct
 ```
 
-## 6.1 实验控制台怎么用
+Windows 用户也可以使用：
 
-如果你不想只看命令行输出，而是想把整个调参过程变成一个可视化实验台，可以直接启动：
+- `run_offline.bat`
+- `run_online.bat`
+- `run_lab.bat`
 
-```bash
+## 配置文件
+
+先复制模板：
+
+```bat
+copy config.example.json config.json
+```
+
+### `serial`
+
+- `port`：串口名，例如 `COM3`。
+- `baudrate`：必须与 MCU 一致，示例为 115200。
+- `timeout`：串口读取超时秒数。
+- `encoding`：协议文本编码，示例为 UTF-8/ASCII 兼容内容。
+
+### `llm`
+
+- `api_key`：推荐改用环境变量 `DEEPSEEK_API_KEY`。
+- `base_url`：OpenAI 兼容 API 地址。
+- `model` / `model_fallback`：主模型和回退模型。
+- `temperature` / `max_tokens`：模型生成参数。
+
+### `loops.<name>`
+
+- `pid`：当前 `kp/ki/kd`。
+- `limits`：PID 参数允许范围。
+- `output_limits`：真实执行器输出范围，单位必须与 MCU 的 `output` 字段一致。
+- `target_metrics`：最大超调、最大调节时间和最大稳态误差目标。
+
+`limits` 约束 PID 参数；`output_limits` 用于检查执行器饱和，二者不是一回事。
+
+### `tuning`
+
+- `max_change_ratio`：单轮最大相对变化。
+- `min_change_threshold`：过小变化吸附为原值。
+- `history_window`：提供给调参逻辑的历史窗口。
+- `data_sample_count`：提供给模型的采样数量。
+
+### `online`
+
+- `tune_interval_s`：在线调参间隔。
+- `data_buffer_size`：内存中的采样缓冲区大小。
+- `auto_apply`：是否自动发送建议；实机初期应为 `false`。
+
+## CSV 格式
+
+推荐五列：
+
+```csv
+timestamp,target,actual,error,output
+0.000,100.0,0.0,100.0,0.0
+0.010,100.0,4.8,95.2,50.0
+```
+
+也接受三列 `timestamp,target,actual`，程序会计算 error，并把 output 记为 0。
+
+分析前会检查：
+
+- 至少 10 个样本。
+- 所有值有限，不允许 NaN/Infinity。
+- 时间戳严格递增。
+- 最大采样间隔不超过中位周期的 5 倍。
+- `error` 与 `target - actual` 一致。
+- 配置了输出范围时，检查输出是否饱和。
+
+## 实验控制台
+
+启动本地实验台：
+
+```bat
 python main.py lab
 ```
 
-也可以：
+或者：
 
-```bash
-python scripts/start_lab.py
+```bat
+python scripts/start_lab.py --no-browser
 run_lab.bat
 ```
 
-第一阶段实验控制台支持：
+当前支持 simulate/offline 会话、LLM/BO/hybrid 策略、本地 SQLite、记录表、
+事件流和趋势图。真实 MCU 的在线 GUI 闭环尚未完成，命令行 online 模式不受影响。
 
-1. 会话创建、命名、编辑、删除
-2. `simulate` 会话自动多轮实验
-3. `offline` 会话导入 CSV 做基线和候选建议
-4. `llm / bo / hybrid` 三种策略切换
-5. 手动新增记录、删除记录、清空记录
-6. 本地 SQLite 持久化
-7. 实时事件流、记录表、趋势图、参数空间图
+## 输出文件
 
-要点：
+- 调参历史：`data/logs/`
+- 实验数据库：`data/lab/`
+- 串口采集：默认位于 `data/raw/` 或命令指定路径
+- 图表和报告：`outputs/`
 
-1. `simulate` 最适合先体验 BO 和 hybrid 的过程反馈
-2. `offline` 更适合把已有数据做成可比较的实验记录
-3. 这一阶段还不接真实 MCU 在线 GUI
+这些运行产物大多已被 `.gitignore` 忽略。
 
-## 7. 输出结果怎么理解
-
-常见指标：
-
-1. `Overshoot`
-超调量
-2. `Settling time`
-调节时间
-3. `Steady-state error`
-稳态误差
-4. `Oscillation count`
-振荡次数
-
-可以这样理解：
-
-1. 超调大，通常说明系统太猛
-2. 调节时间长，通常说明响应慢
-3. 稳态误差大，说明最后没贴住目标
-4. 振荡多，通常说明参数偏激进
-
-如果 LLM 调参成功，你还会看到：
-
-1. 新的 `Kp/Ki/Kd`
-2. 调整理由
-3. 置信度
-4. 一条可直接发给设备的串口命令
-
-## 8. 最常见的问题
+## 常见问题
 
 ### `401 Authorization Required`
 
-说明：
-
-1. API key 无效
-2. 没配置 key
-3. 程序没有读到 key
-
-处理：
-
-1. 检查 `DEEPSEEK_API_KEY`
-2. 或检查本地 `config.json`
+检查 API key、环境变量和 base URL。`offline_analyze.py` 不需要 API key，可用来区分
+本地分析问题与模型鉴权问题。
 
 ### 串口打不开
 
-处理：
+检查端口号、波特率、USB 驱动，以及串口是否被 Keil、串口助手或其他程序占用。
 
-1. 检查端口号
-2. 检查波特率
-3. 检查是否被其他软件占用
+### 有 DATA，但样本仍不足
 
-### 在线模式总是样本不足
+检查 loop 名称、时间戳、数据格式和采样持续时间。先用监视脚本观察原始消息。
 
-处理：
+### 参数发送后超时
 
-1. 看 MCU 有没有持续发 `DATA:`
-2. 看 `loop` 名称是否和命令行一致
-3. 先用 `monitor_serial.py` 检查
+检查设备是否实现协议 v2，返回的 request ID、loop 和参数是否与请求完全一致。
+旧格式 ACK 只能被解析，不能确认一次 v2 参数更新。
 
-### 离线模式直接退出
+### 分析拒绝 CSV
 
-处理：
-
-1. 看 CSV 是否至少有 5 条数据
-2. 看列格式是否正确
-3. 看文件是不是纯文本
-
-## 9. 最后给一个稳妥顺序
-
-如果你不想来回踩坑，建议始终按这个顺序：
-
-1. 先证明本地分析能跑
-2. 再证明 LLM key 没问题
-3. 再证明 MCU 串口链路没问题
-4. 最后才在线调参
+错误信息会指出样本数量、NaN、时间戳、采样间隔或 error 字段问题。不要关闭质量门控，
+先修正采集或固件遥测。
